@@ -35,6 +35,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 #filterInput:focus { border-color: var(--accent); }
 #filterInput::placeholder { color: var(--text2); }
 #sortSelect { background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--text); padding: 5px 8px; font-size: 12px; cursor: pointer; }
+#typeFilter { background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--text); padding: 5px 8px; font-size: 12px; cursor: pointer; }
+#dateFrom, #dateTo { background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--text); padding: 4px 6px; font-size: 11px; width: 122px; color-scheme: dark; }
 .spacer { flex: 1; }
 #counter { font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; }
 #sizeSlider { width: 80px; accent-color: var(--accent); cursor: pointer; }
@@ -126,6 +128,21 @@ video#lb-media { outline: none; }
 #lb-prev { left: 12px; }
 #lb-next { right: 12px; }
 
+#lb-toolbar {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 202;
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(20,20,20,.9); backdrop-filter: blur(12px); border-radius: 10px;
+  padding: 6px 8px; border: 1px solid rgba(255,255,255,.06);
+}
+#lb-toolbar button {
+  width: 30px; height: 30px; border-radius: 6px; background: rgba(255,255,255,.08); border: none;
+  color: #fff; font-size: 14px; cursor: pointer; transition: background .12s;
+  display: flex; align-items: center; justify-content: center;
+}
+#lb-toolbar button:hover { background: rgba(255,255,255,.2); }
+#lb-toolbar button.active { background: var(--accent); }
+#lb-toolbar .lb-tb-sep { width: 1px; height: 18px; background: rgba(255,255,255,.15); margin: 0 2px; }
+
 /* Scrollbar */
 #grid-wrap::-webkit-scrollbar { width: 6px; }
 #grid-wrap::-webkit-scrollbar-track { background: transparent; }
@@ -171,6 +188,9 @@ video#lb-media { outline: none; }
   <button id="btnReload">↺ Reload</button>
   <span class="sep"></span>
   <input type="text" id="filterInput" placeholder="Filter...">
+  <select id="typeFilter"><option value="all" selected>All types</option><option value="image">Images only</option><option value="video">Videos only</option></select>
+  <input type="date" id="dateFrom" title="From date">
+  <input type="date" id="dateTo" title="To date">
   <select id="sortSelect"><option value="date-new" selected>Newest</option><option value="date-old">Oldest</option><option value="name-asc">A-Z</option><option value="name-desc">Z-A</option></select>
   <span class="sep"></span>
   <input type="range" id="sizeSlider" min="80" max="400" value="180" title="Thumb size">
@@ -185,7 +205,7 @@ video#lb-media { outline: none; }
     <label class="btn-primary" for="folderPicker">Open Folder<input type="file" id="folderPicker" webkitdirectory multiple style="display:none"></label>
     <button class="btn-secondary" id="btnDrive">Google Drive</button>
   </div>
-  <div class="hint"><kbd>←</kbd><kbd>→</kbd> navigate · <kbd>F</kbd> fit · scroll zoom · <kbd>Space</kbd> play/pause · <kbd>Esc</kbd> close · drag &amp; drop folder</div>
+  <div class="hint"><kbd>←</kbd><kbd>→</kbd> navigate · <kbd>F</kbd> fit · <kbd>1</kbd> 1:1 · <kbd>R</kbd> rotate · <kbd>S</kbd> slideshow · <kbd>Enter</kbd> fullscreen · scroll zoom · <kbd>Space</kbd> play/pause · <kbd>Esc</kbd> close · drag &amp; drop folder</div>
 </div>
 
 <div id="grid-wrap" style="display:none">
@@ -199,6 +219,18 @@ video#lb-media { outline: none; }
   <button class="lb-arrow" id="lb-prev">&#8249;</button>
   <button class="lb-arrow" id="lb-next">&#8250;</button>
   <div id="lb-info"><span class="idx" id="lb-counter"></span><span id="lb-name"></span><span id="lb-dim"></span></div>
+  <div id="lb-toolbar">
+    <button id="lb-rotate-l" title="Rotate left (Shift+R)">⟲</button>
+    <button id="lb-rotate-r" title="Rotate right (R)">⟳</button>
+    <span class="lb-tb-sep"></span>
+    <button id="lb-zoom-out" title="Zoom out (-)">&minus;</button>
+    <button id="lb-fit" title="Fit to screen (F)">⤢</button>
+    <button id="lb-actual" title="Actual size (1)">1:1</button>
+    <button id="lb-zoom-in" title="Zoom in (+)">+</button>
+    <span class="lb-tb-sep"></span>
+    <button id="lb-slideshow" title="Slideshow (S)">&#9654;</button>
+    <button id="lb-fullscreen" title="Fullscreen (Enter)">⛶</button>
+  </div>
 </div>
 
 <div id="driveModal">
@@ -215,7 +247,7 @@ video#lb-media { outline: none; }
 <script>
 // State
 let allMedia = [], filtered = [], currentIdx = -1;
-let scale = 1, panX = 0, panY = 0, isFitted = true, naturalW = 0, naturalH = 0;
+let scale = 1, panX = 0, panY = 0, isFitted = true, naturalW = 0, naturalH = 0, rotation = 0;
 let isDragging = false, dragSX = 0, dragSY = 0, panSX = 0, panSY = 0;
 const preloaded = new Map();
 let thumbSize = 180;
@@ -225,6 +257,7 @@ const $ = id => document.getElementById(id);
 const grid = $('grid'), gridWrap = $('grid-wrap'), topbar = $('topbar'), welcome = $('welcome');
 const lightbox = $('lightbox'), lbCounter = $('lb-counter'), lbName = $('lb-name'), lbDim = $('lb-dim');
 const filterInput = $('filterInput'), sortSelect = $('sortSelect'), counter = $('counter');
+const typeFilter = $('typeFilter'), dateFrom = $('dateFrom'), dateTo = $('dateTo');
 
 function isVideo(name) { return /\.(mp4|webm|mov|avi|mkv)$/i.test(name); }
 function isMedia(name) { return /\.(jpe?g|png|webp|gif|bmp|avif|mp4|webm|mov)$/i.test(name); }
@@ -295,7 +328,17 @@ function showGrid() {
 function applyFilterSort(resetScroll = true) {
   const q = filterInput.value.toLowerCase();
   const s = sortSelect.value;
-  filtered = allMedia.filter(m => !q || m.name.toLowerCase().includes(q));
+  const type = typeFilter.value;
+  const from = dateFrom.value ? new Date(dateFrom.value + 'T00:00:00').getTime() : null;
+  const to = dateTo.value ? new Date(dateTo.value + 'T23:59:59.999').getTime() : null;
+  filtered = allMedia.filter(m => {
+    if (q && !m.name.toLowerCase().includes(q)) return false;
+    if (type === 'image' && m.video) return false;
+    if (type === 'video' && !m.video) return false;
+    if (from !== null && m.date < from) return false;
+    if (to !== null && m.date > to) return false;
+    return true;
+  });
   filtered.sort((a, b) => {
     if (s === 'name-asc') return a.name.localeCompare(b.name);
     if (s === 'name-desc') return b.name.localeCompare(a.name);
@@ -406,7 +449,10 @@ window.addEventListener('resize', () => {
 
 let filterTimer;
 filterInput.addEventListener('input', () => { clearTimeout(filterTimer); filterTimer = setTimeout(applyFilterSort, 120); });
-sortSelect.addEventListener('change', applyFilterSort);
+sortSelect.addEventListener('change', () => applyFilterSort());
+typeFilter.addEventListener('change', () => applyFilterSort());
+dateFrom.addEventListener('change', () => applyFilterSort());
+dateTo.addEventListener('change', () => applyFilterSort());
 
 // ── Lightbox ──
 let lbEl = null; // current media element in lightbox
@@ -422,6 +468,8 @@ function closeLightbox() {
   lightbox.classList.remove('open');
   // pause video if playing
   if (lbEl && lbEl.tagName === 'VIDEO') lbEl.pause();
+  stopSlideshow();
+  if (document.fullscreenElement) document.exitFullscreen?.();
   currentIdx = -1;
   resetZoom();
 }
@@ -429,6 +477,9 @@ function closeLightbox() {
 function showLightboxMedia() {
   const m = filtered[currentIdx];
   if (!m) return;
+  rotation = 0;
+  const isVid = m.video;
+  ['lb-zoom-out', 'lb-fit', 'lb-actual', 'lb-zoom-in'].forEach(id => $(id).style.display = isVid ? 'none' : 'flex');
 
   // Remove old media element
   if (lbEl) lbEl.remove();
@@ -467,12 +518,7 @@ function showLightboxMedia() {
     // Double-click zoom
     lbEl.addEventListener('dblclick', e => {
       e.preventDefault();
-      if (isFitted) {
-        isFitted = false;
-        scale = Math.max(2, naturalW / (window.innerWidth * 0.95));
-        panX = 0; panY = 0;
-      } else { resetZoom(); }
-      applyTransform();
+      toggleActualFit();
     });
     // Pan
     lbEl.addEventListener('mousedown', e => {
@@ -533,24 +579,116 @@ function scrollThumbIntoView() {
 function resetZoom() { scale = 1; panX = 0; panY = 0; isFitted = true; applyTransform(); }
 
 function applyTransform() {
-  if (!lbEl || lbEl.tagName === 'VIDEO') return;
-  if (isFitted) {
-    lbEl.style.transform = ''; lbEl.style.maxWidth = '95vw'; lbEl.style.maxHeight = 'calc(95vh - 40px)';
-    lbEl.style.position = ''; lbEl.style.left = ''; lbEl.style.top = '';
-    lbEl.style.width = ''; lbEl.style.height = '';
+  if (!lbEl) return;
+  if (lbEl.tagName === 'VIDEO') {
+    const swapped = rotation === 90 || rotation === 270;
+    lbEl.style.maxWidth = swapped ? 'calc(95vh - 40px)' : '95vw';
+    lbEl.style.maxHeight = swapped ? '95vw' : 'calc(95vh - 40px)';
+    lbEl.style.transformOrigin = 'center center';
+    lbEl.style.transform = rotation ? `rotate(${rotation}deg)` : '';
+    return;
+  }
+  if (rotation === 0) {
+    if (isFitted) {
+      lbEl.style.transform = ''; lbEl.style.maxWidth = '95vw'; lbEl.style.maxHeight = 'calc(95vh - 40px)';
+      lbEl.style.position = ''; lbEl.style.left = ''; lbEl.style.top = '';
+      lbEl.style.width = ''; lbEl.style.height = '';
+    } else {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const ar = naturalW / naturalH;
+      let fw, fh;
+      if (vw / vh > ar) { fh = vh * 0.95; fw = fh * ar; } else { fw = vw * 0.95; fh = fw / ar; }
+      lbEl.style.maxWidth = 'none'; lbEl.style.maxHeight = 'none';
+      lbEl.style.width = fw + 'px'; lbEl.style.height = fh + 'px';
+      lbEl.style.position = 'absolute';
+      lbEl.style.left = (vw / 2 - fw / 2 + panX) + 'px';
+      lbEl.style.top = (vh / 2 - fh / 2 + panY) + 'px';
+      lbEl.style.transformOrigin = '0 0';
+      lbEl.style.transform = `scale(${scale})`;
+    }
+    return;
+  }
+  // Rotated 90/180/270: center-pivot layout, bounding box swapped for 90/270
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const ar = naturalW / naturalH;
+  const swapped = rotation === 90 || rotation === 270;
+  const boundW = swapped ? vh : vw, boundH = swapped ? vw : vh;
+  let fw, fh;
+  if (boundW / boundH > ar) { fh = boundH * 0.95; fw = fh * ar; } else { fw = boundW * 0.95; fh = fw / ar; }
+  lbEl.style.maxWidth = 'none'; lbEl.style.maxHeight = 'none';
+  lbEl.style.width = fw + 'px'; lbEl.style.height = fh + 'px';
+  lbEl.style.position = 'absolute';
+  lbEl.style.left = (vw / 2 + panX) + 'px';
+  lbEl.style.top = (vh / 2 + panY) + 'px';
+  lbEl.style.transformOrigin = 'center center';
+  lbEl.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`;
+}
+
+function rotateBy(deg) { rotation = ((rotation + deg) % 360 + 360) % 360; applyTransform(); }
+
+function zoomToActual() {
+  if (!lbEl || lbEl.tagName === 'VIDEO' || !naturalW) return;
+  isFitted = false;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const ar = naturalW / naturalH;
+  const swapped = rotation === 90 || rotation === 270;
+  const boundW = swapped ? vh : vw, boundH = swapped ? vw : vh;
+  let fw, fh;
+  if (boundW / boundH > ar) { fh = boundH * 0.95; fw = fh * ar; } else { fw = boundW * 0.95; fh = fw / ar; }
+  scale = naturalW / fw;
+  panX = 0; panY = 0;
+  applyTransform();
+}
+
+function toggleActualFit() { if (isFitted) zoomToActual(); else resetZoom(); }
+
+let slideshowTimer = null;
+const SLIDESHOW_MS = 4000;
+
+function slideshowTick() {
+  if (!filtered.length) return;
+  if (lbEl && lbEl.tagName === 'VIDEO') lbEl.pause();
+  currentIdx = (currentIdx + 1) % filtered.length;
+  resetZoom();
+  showLightboxMedia();
+  highlightThumb();
+  scrollThumbIntoView();
+}
+
+function toggleSlideshow() {
+  const btn = $('lb-slideshow');
+  if (slideshowTimer) {
+    clearInterval(slideshowTimer); slideshowTimer = null;
+    btn.innerHTML = '&#9654;'; btn.classList.remove('active');
   } else {
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const ar = naturalW / naturalH;
-    let fw, fh;
-    if (vw / vh > ar) { fh = vh * 0.95; fw = fh * ar; } else { fw = vw * 0.95; fh = fw / ar; }
-    lbEl.style.maxWidth = 'none'; lbEl.style.maxHeight = 'none';
-    lbEl.style.width = fw + 'px'; lbEl.style.height = fh + 'px';
-    lbEl.style.position = 'absolute';
-    lbEl.style.left = (vw / 2 - fw / 2 + panX) + 'px';
-    lbEl.style.top = (vh / 2 - fh / 2 + panY) + 'px';
-    lbEl.style.transform = `scale(${scale})`;
+    slideshowTimer = setInterval(slideshowTick, SLIDESHOW_MS);
+    btn.innerHTML = '&#10074;&#10074;'; btn.classList.add('active');
   }
 }
+
+function stopSlideshow() {
+  if (!slideshowTimer) return;
+  clearInterval(slideshowTimer); slideshowTimer = null;
+  $('lb-slideshow').innerHTML = '&#9654;'; $('lb-slideshow').classList.remove('active');
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) lightbox.requestFullscreen?.();
+  else document.exitFullscreen?.();
+}
+
+document.addEventListener('fullscreenchange', () => {
+  $('lb-fullscreen').classList.toggle('active', !!document.fullscreenElement);
+});
+
+$('lb-rotate-l').addEventListener('click', () => rotateBy(-90));
+$('lb-rotate-r').addEventListener('click', () => rotateBy(90));
+$('lb-fit').addEventListener('click', () => resetZoom());
+$('lb-actual').addEventListener('click', zoomToActual);
+$('lb-zoom-in').addEventListener('click', () => { scale *= 1.25; isFitted = false; applyTransform(); });
+$('lb-zoom-out').addEventListener('click', () => { scale *= 0.8; isFitted = false; applyTransform(); });
+$('lb-slideshow').addEventListener('click', toggleSlideshow);
+$('lb-fullscreen').addEventListener('click', toggleFullscreen);
 
 // Scroll zoom
 lightbox.addEventListener('wheel', e => {
@@ -593,6 +731,11 @@ document.addEventListener('keydown', e => {
       case '+': case '=': scale *= 1.25; isFitted = false; applyTransform(); break;
       case '-': scale *= 0.8; isFitted = false; applyTransform(); break;
       case '0': case 'f': case 'F': resetZoom(); applyTransform(); break;
+      case '1': toggleActualFit(); break;
+      case 'r': rotateBy(90); break;
+      case 'R': rotateBy(-90); break;
+      case 's': case 'S': toggleSlideshow(); break;
+      case 'Enter': toggleFullscreen(); break;
       case ' ':
         e.preventDefault();
         if (lbEl && lbEl.tagName === 'VIDEO') { lbEl.paused ? lbEl.play() : lbEl.pause(); }
@@ -652,8 +795,36 @@ async function readDirEntry(root) {
 }
 
 // ── Google Drive ──
-let gapiOk = false, gisOk = false, driveToken = null;
+let gapiOk = false, gisOk = false, driveToken = null, tokenClient = null, refreshTimer = null;
 function loadScript(src) { return new Promise((r, j) => { const s = document.createElement('script'); s.src = src; s.onload = r; s.onerror = j; document.head.appendChild(s); }); }
+
+// ── Silent token refresh — keeps the session alive without re-prompting ──
+function scheduleTokenRefresh(expiresIn) {
+  clearTimeout(refreshTimer);
+  const ms = Math.max(30000, (parseInt(expiresIn || '3600') - 300) * 1000);
+  refreshTimer = setTimeout(() => requestToken({ prompt: '' }).catch(() => {}), ms);
+}
+function requestToken(overrides = {}) {
+  return new Promise((resolve, reject) => {
+    tokenClient.callback = async resp => {
+      if (!resp.access_token) { reject(new Error(resp.error || 'auth failed')); return; }
+      saveToken(resp.access_token, resp.expires_in);
+      gapi.client.setToken({ access_token: resp.access_token });
+      driveToken = resp.access_token;
+      scheduleTokenRefresh(resp.expires_in);
+      if (!localStorage.getItem('dv_hint')) {
+        try {
+          const ui = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+            headers: { Authorization: `Bearer ${resp.access_token}` }
+          }).then(r => r.json());
+          if (ui.email) localStorage.setItem('dv_hint', ui.email);
+        } catch (e) {}
+      }
+      resolve(resp.access_token);
+    };
+    tokenClient.requestAccessToken(overrides);
+  });
+}
 
 // ── Token caching (tokens live ~1h) ──
 function getCachedToken() {
@@ -746,31 +917,28 @@ async function initDrive(clientId, folderName) {
   await new Promise(r => gapi.load('client', r));
   await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
 
-  driveToken = getCachedToken();
-  if (!driveToken) {
-    const hint = localStorage.getItem('dv_hint') || '';
-    driveToken = await new Promise((resolve, reject) => {
-      google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/drive.readonly',
-        hint,
-        callback: resp => {
-          if (resp.access_token) {
-            saveToken(resp.access_token, resp.expires_in);
-            resolve(resp.access_token);
-          } else { reject(new Error(resp.error || 'auth failed')); }
-        }
-      }).requestAccessToken();
+  if (!tokenClient) {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: () => {}
     });
-    // Store login hint so account picker is pre-filled on re-auth
-    try {
-      const ui = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-        headers: { Authorization: `Bearer ${driveToken}` }
-      }).then(r => r.json());
-      if (ui.email) localStorage.setItem('dv_hint', ui.email);
-    } catch (e) {}
   }
-  gapi.client.setToken({ access_token: driveToken });
+
+  driveToken = getCachedToken();
+  if (driveToken) {
+    gapi.client.setToken({ access_token: driveToken });
+    const secsLeft = Math.floor((parseInt(localStorage.getItem('dv_token_exp') || '0') - Date.now()) / 1000);
+    scheduleTokenRefresh(secsLeft + 300);
+  } else {
+    try {
+      driveToken = await requestToken({ hint: localStorage.getItem('dv_hint') || '' });
+    } catch (e) {
+      $('loading').classList.remove('active');
+      alert('Google Drive authorization failed.');
+      return;
+    }
+  }
 
   const fr = await gapi.client.drive.files.list({
     q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
@@ -783,10 +951,21 @@ async function initDrive(clientId, folderName) {
   let gridInitialized = !!(cached && cached.length); // grid al getoond vanuit cache?
   counter.textContent = 'Scanning...';
 
-  let aborted = false;
+  let aborted = false, handling401 = false;
   function handle401(e) {
-    if (e?.status === 401) { clearToken(); counter.textContent = 'Sessie verlopen — klik ☁ Drive om opnieuw te verbinden.'; aborted = true; return true; }
-    return false;
+    if (e?.status !== 401) return false;
+    aborted = true;
+    if (!handling401) {
+      handling401 = true;
+      clearToken();
+      requestToken({ prompt: '' }).then(() => {
+        counter.textContent = 'Sessie ververst — opnieuw laden...';
+        initDrive(clientId, folderName);
+      }).catch(() => {
+        counter.textContent = 'Sessie verlopen — klik ☁ Drive om opnieuw te verbinden.';
+      });
+    }
+    return true;
   }
 
   // Throttled progressive render zodat je direct kunt scrollen
