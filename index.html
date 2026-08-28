@@ -487,7 +487,9 @@ function showLightboxMedia() {
   if (m.video) {
     lbEl = document.createElement('video');
     lbEl.id = 'lb-media';
-    lbEl.src = m.url;
+    // Drive videos need an authenticated, range-request-capable source — uc?export=download
+    // fails to stream and cached items carry no url at all, so build it live from the token.
+    lbEl.src = m.driveId ? `https://www.googleapis.com/drive/v3/files/${m.driveId}?alt=media&access_token=${driveToken}` : m.url;
     lbEl.controls = true;
     lbEl.autoplay = true;
     lbEl.loop = true;
@@ -498,6 +500,7 @@ function showLightboxMedia() {
       naturalW = lbEl.videoWidth; naturalH = lbEl.videoHeight;
       lbDim.textContent = `${naturalW}×${naturalH}`;
     });
+    lbEl.play().catch(() => {});
   } else {
     lbEl = document.createElement('img');
     lbEl.id = 'lb-media';
@@ -1023,7 +1026,7 @@ async function initDrive(clientId, folderName) {
         const v = (f.mimeType || '').startsWith('video/');
         const baseThumb = f.thumbnailLink ? f.thumbnailLink.replace(/=s\d+(-c)?$/, '') : null;
         const thumbUrl = baseThumb ? baseThumb + '=s400' : `https://drive.google.com/thumbnail?id=${f.id}&sz=w400`;
-        const url = v ? `https://drive.google.com/uc?export=download&id=${f.id}` : (baseThumb ? baseThumb + '=s2048' : `https://drive.google.com/thumbnail?id=${f.id}&sz=w2048`);
+        const url = v ? null : (baseThumb ? baseThumb + '=s2048' : `https://drive.google.com/thumbnail?id=${f.id}&sz=w2048`);
         media.push({ name, driveId: f.id, video: v, url, thumbUrl, thumbBase: baseThumb, date: new Date(f.modifiedTime || 0).getTime() });
       }
       pt = r.result.nextPageToken;
