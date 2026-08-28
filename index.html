@@ -464,6 +464,8 @@ function openLightbox(idx) {
   highlightThumb();
 }
 
+let lastVideoBlobUrl = null;
+
 function closeLightbox() {
   lightbox.classList.remove('open');
   // pause video if playing
@@ -483,24 +485,45 @@ function showLightboxMedia() {
 
   // Remove old media element
   if (lbEl) lbEl.remove();
+  if (lastVideoBlobUrl) { URL.revokeObjectURL(lastVideoBlobUrl); lastVideoBlobUrl = null; }
 
   if (m.video) {
     lbEl = document.createElement('video');
-    lbEl.id = 'lb-media';
-    // Drive videos need an authenticated, range-request-capable source — uc?export=download
-    // fails to stream and cached items carry no url at all, so build it live from the token.
-    lbEl.src = m.driveId ? `https://www.googleapis.com/drive/v3/files/${m.driveId}?alt=media&access_token=${driveToken}` : m.url;
-    lbEl.controls = true;
-    lbEl.autoplay = true;
-    lbEl.loop = true;
-    lbEl.style.maxWidth = '95vw';
-    lbEl.style.maxHeight = 'calc(95vh - 40px)';
-    lbEl.style.outline = 'none';
-    lbEl.addEventListener('loadedmetadata', () => {
-      naturalW = lbEl.videoWidth; naturalH = lbEl.videoHeight;
+    const videoEl = lbEl;
+    videoEl.id = 'lb-media';
+    videoEl.controls = true;
+    videoEl.loop = true;
+    videoEl.style.maxWidth = '95vw';
+    videoEl.style.maxHeight = 'calc(95vh - 40px)';
+    videoEl.style.outline = 'none';
+    videoEl.addEventListener('loadedmetadata', () => {
+      naturalW = videoEl.videoWidth; naturalH = videoEl.videoHeight;
       lbDim.textContent = `${naturalW}×${naturalH}`;
     });
-    lbEl.play().catch(() => {});
+    if (m.driveId) {
+      // A <video src> can't send an Authorization header, and Drive's uc?export=download
+      // link isn't a real streamable source (no auth, no range support, confirm-page for
+      // larger files) — so fetch it authenticated and play it back as a blob instead.
+      lbDim.textContent = 'Loading…';
+      fetch(`https://www.googleapis.com/drive/v3/files/${m.driveId}?alt=media`, {
+        headers: { Authorization: `Bearer ${driveToken}` }
+      }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+        .then(blob => {
+          if (!document.contains(videoEl)) return;
+          lastVideoBlobUrl = URL.createObjectURL(blob);
+          videoEl.src = lastVideoBlobUrl;
+          videoEl.autoplay = true;
+          videoEl.play().catch(() => {});
+        })
+        .catch(err => {
+          if (document.contains(videoEl)) lbDim.textContent = 'Video load failed';
+          console.error('Drive video load failed', err);
+        });
+    } else {
+      videoEl.src = m.url;
+      videoEl.autoplay = true;
+      videoEl.play().catch(() => {});
+    }
   } else {
     lbEl = document.createElement('img');
     lbEl.id = 'lb-media';
