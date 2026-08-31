@@ -236,8 +236,9 @@ video#lb-media { outline: none; }
 <div id="driveModal">
   <div class="modal">
     <h2>Connect Google Drive</h2>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5">OAuth Client ID from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent)">console.cloud.google.com</a></p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5">OAuth Client (Web application) from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent)">console.cloud.google.com</a> — add this exact page URL as an Authorized redirect URI.</p>
     <div class="field"><label>Client ID</label><input id="driveClientId" placeholder="123...apps.googleusercontent.com" spellcheck="false"></div>
+    <div class="field"><label>Client Secret</label><input id="driveClientSecret" placeholder="GOCSPX-..." spellcheck="false"></div>
     <div class="field"><label>API Key (optional)</label><input id="driveApiKey" placeholder="AIza..." spellcheck="false"></div>
     <div class="field"><label>Folder</label><input id="driveFolderName" value="ComfyUI-Results" spellcheck="false"></div>
     <div class="btns"><button class="cancel" id="driveCancel">Cancel</button><button class="connect" id="driveConnect">Connect</button></div>
@@ -821,35 +822,99 @@ async function readDirEntry(root) {
 }
 
 // ── Google Drive ──
-let gapiOk = false, gisOk = false, driveToken = null, tokenClient = null, refreshTimer = null;
+let gapiOk = false, driveToken = null, refreshTimer = null;
 function loadScript(src) { return new Promise((r, j) => { const s = document.createElement('script'); s.src = src; s.onload = r; s.onerror = j; document.head.appendChild(s); }); }
 
-// ── Silent token refresh — keeps the session alive without re-prompting ──
+// ── OAuth: authorization-code + PKCE, so we get a refresh_token that never
+// expires (GIS's implicit-flow tokens can only be silently renewed via a
+// hidden accounts.google.com iframe, which most browsers now block via
+// third-party-cookie restrictions — hence the recurring "reconnect" pain). ──
+function redirectUri() { return window.location.origin + window.location.pathname; }
+function b64url(bytes) {
+  let bin = ''; for (const b of new Uint8Array(bytes)) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function pkcePair() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  return { verifier, challenge };
+}
+async function startDriveAuth(clientId) {
+  const { verifier, challenge } = await pkcePair();
+  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  sessionStorage.setItem('dv_pkce_verifier', verifier);
+  sessionStorage.setItem('dv_oauth_state', state);
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri(),
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
+    access_type: 'offline',
+    prompt: 'consent',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    state
+  });
+  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+}
+async function tokenRequest(body) {
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error_description || data.error || 'token request failed');
+  return data;
+}
+async function exchangeCodeForTokens(code, clientId, clientSecret) {
+  const verifier = sessionStorage.getItem('dv_pkce_verifier') || '';
+  const body = new URLSearchParams({
+    client_id: clientId, code, code_verifier: verifier,
+    grant_type: 'authorization_code', redirect_uri: redirectUri()
+  });
+  if (clientSecret) body.set('client_secret', clientSecret);
+  return tokenRequest(body);
+}
+async function refreshAccessToken() {
+  const clientId = localStorage.getItem('dv_clientId');
+  const clientSecret = localStorage.getItem('dv_clientSecret') || '';
+  const refreshTokenVal = localStorage.getItem('dv_refresh_token');
+  if (!clientId || !refreshTokenVal) throw new Error('not connected');
+  const body = new URLSearchParams({ client_id: clientId, refresh_token: refreshTokenVal, grant_type: 'refresh_token' });
+  if (clientSecret) body.set('client_secret', clientSecret);
+  const data = await tokenRequest(body);
+  saveToken(data.access_token, data.expires_in);
+  driveToken = data.access_token;
+  gapi.client.setToken({ access_token: data.access_token });
+  scheduleTokenRefresh(data.expires_in);
+  return data.access_token;
+}
 function scheduleTokenRefresh(expiresIn) {
   clearTimeout(refreshTimer);
   const ms = Math.max(30000, (parseInt(expiresIn || '3600') - 300) * 1000);
-  refreshTimer = setTimeout(() => requestToken({ prompt: '' }).catch(() => {}), ms);
+  refreshTimer = setTimeout(() => refreshAccessToken().catch(err => console.error('token refresh failed', err)), ms);
 }
-function requestToken(overrides = {}) {
-  return new Promise((resolve, reject) => {
-    tokenClient.callback = async resp => {
-      if (!resp.access_token) { reject(new Error(resp.error || 'auth failed')); return; }
-      saveToken(resp.access_token, resp.expires_in);
-      gapi.client.setToken({ access_token: resp.access_token });
-      driveToken = resp.access_token;
-      scheduleTokenRefresh(resp.expires_in);
-      if (!localStorage.getItem('dv_hint')) {
-        try {
-          const ui = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-            headers: { Authorization: `Bearer ${resp.access_token}` }
-          }).then(r => r.json());
-          if (ui.email) localStorage.setItem('dv_hint', ui.email);
-        } catch (e) {}
-      }
-      resolve(resp.access_token);
-    };
-    tokenClient.requestAccessToken(overrides);
-  });
+async function handleOAuthRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code'), state = params.get('state'), err = params.get('error');
+  if (!code && !err) return false;
+  history.replaceState({}, '', redirectUri());
+  if (err) { alert('Google Drive authorization failed: ' + err); return true; }
+  const expectedState = sessionStorage.getItem('dv_oauth_state');
+  sessionStorage.removeItem('dv_oauth_state');
+  if (!expectedState || state !== expectedState) { alert('Google Drive authorization failed: state mismatch'); return true; }
+  const clientId = localStorage.getItem('dv_clientId');
+  const clientSecret = localStorage.getItem('dv_clientSecret') || '';
+  try {
+    const data = await exchangeCodeForTokens(code, clientId, clientSecret);
+    saveToken(data.access_token, data.expires_in);
+    if (data.refresh_token) localStorage.setItem('dv_refresh_token', data.refresh_token);
+    driveToken = data.access_token;
+    scheduleTokenRefresh(data.expires_in);
+    await initDrive(clientId, localStorage.getItem('dv_folder') || 'ComfyUI-Results');
+  } catch (e) {
+    alert('Google Drive authorization failed: ' + e.message);
+  }
+  return true;
 }
 
 // ── Token caching (tokens live ~1h) ──
@@ -893,24 +958,34 @@ function loadDriveCache(folderName) {
 $('btnDrive').addEventListener('click', () => $('driveModal').classList.add('open'));
 $('btnDriveSmall').addEventListener('click', () => $('driveModal').classList.add('open'));
 $('driveCancel').addEventListener('click', () => $('driveModal').classList.remove('open'));
-$('btnReload').addEventListener('click', () => {
+$('btnReload').addEventListener('click', async () => {
   const cid = localStorage.getItem('dv_clientId');
   const folder = localStorage.getItem('dv_folder') || 'ComfyUI-Results';
-  if (cid) initDrive(cid, folder);
-  else $('driveModal').classList.add('open');
+  if (!cid) { $('driveModal').classList.add('open'); return; }
+  if (!getCachedToken()) {
+    try { await refreshAccessToken(); } catch (e) { $('driveModal').classList.add('open'); return; }
+  }
+  initDrive(cid, folder);
 });
 
 if (localStorage.getItem('dv_clientId')) {
   $('driveClientId').value = localStorage.getItem('dv_clientId');
+  $('driveClientSecret').value = localStorage.getItem('dv_clientSecret') || '';
   $('driveApiKey').value = localStorage.getItem('dv_apiKey') || '';
   $('driveFolderName').value = localStorage.getItem('dv_folder') || 'ComfyUI-Results';
 }
 
-// Auto-connect op page load als token nog geldig is
-(function() {
+// On load: finish an in-progress OAuth redirect, else auto-connect from a
+// cached access token, else silently refresh from the stored refresh_token.
+(async function() {
+  if (await handleOAuthRedirect()) return;
   const cid = localStorage.getItem('dv_clientId');
   const folder = localStorage.getItem('dv_folder') || 'ComfyUI-Results';
-  if (cid && getCachedToken()) initDrive(cid, folder);
+  if (!cid) return;
+  if (getCachedToken()) { initDrive(cid, folder); return; }
+  if (localStorage.getItem('dv_refresh_token')) {
+    try { await refreshAccessToken(); initDrive(cid, folder); } catch (e) {}
+  }
 })();
 
 $('driveConnect').addEventListener('click', async () => {
@@ -918,10 +993,11 @@ $('driveConnect').addEventListener('click', async () => {
   const folder = $('driveFolderName').value.trim() || 'ComfyUI-Results';
   if (!cid) { $('driveClientId').focus(); return; }
   localStorage.setItem('dv_clientId', cid);
+  localStorage.setItem('dv_clientSecret', $('driveClientSecret').value.trim());
   localStorage.setItem('dv_apiKey', $('driveApiKey').value.trim());
   localStorage.setItem('dv_folder', folder);
   $('driveModal').classList.remove('open');
-  await initDrive(cid, folder);
+  await startDriveAuth(cid);
 });
 
 async function initDrive(clientId, folderName) {
@@ -938,18 +1014,9 @@ async function initDrive(clientId, folderName) {
   }
 
   if (!gapiOk) { await loadScript('https://apis.google.com/js/api.js'); gapiOk = true; }
-  if (!gisOk) { await loadScript('https://accounts.google.com/gsi/client'); gisOk = true; }
 
   await new Promise(r => gapi.load('client', r));
   await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
-
-  if (!tokenClient) {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/drive.readonly',
-      callback: () => {}
-    });
-  }
 
   driveToken = getCachedToken();
   if (driveToken) {
@@ -958,10 +1025,10 @@ async function initDrive(clientId, folderName) {
     scheduleTokenRefresh(secsLeft + 300);
   } else {
     try {
-      driveToken = await requestToken({ hint: localStorage.getItem('dv_hint') || '' });
+      driveToken = await refreshAccessToken();
     } catch (e) {
       $('loading').classList.remove('active');
-      alert('Google Drive authorization failed.');
+      $('driveModal').classList.add('open');
       return;
     }
   }
@@ -984,7 +1051,7 @@ async function initDrive(clientId, folderName) {
     if (!handling401) {
       handling401 = true;
       clearToken();
-      requestToken({ prompt: '' }).then(() => {
+      refreshAccessToken().then(() => {
         counter.textContent = 'Sessie ververst — opnieuw laden...';
         initDrive(clientId, folderName);
       }).catch(() => {
