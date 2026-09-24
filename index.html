@@ -1,1143 +1,1145 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="referrer" content="no-referrer">
 <title>Drive Viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236e8efb'/%3E%3Cstop offset='1' stop-color='%23a777e3'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0f'/%3E%3Crect x='10' y='10' width='20' height='20' rx='4' fill='url(%23g)'/%3E%3Crect x='34' y='10' width='20' height='20' rx='4' fill='url(%23g)' opacity='.7'/%3E%3Crect x='10' y='34' width='20' height='20' rx='4' fill='url(%23g)' opacity='.7'/%3E%3Crect x='34' y='34' width='20' height='20' rx='4' fill='url(%23g)' opacity='.45'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230b0b0f'/%3E%3Crect x='10' y='10' width='20' height='20' rx='4' fill='%236e8efb'/%3E%3Crect x='34' y='10' width='20' height='20' rx='4' fill='%238a82ef'/%3E%3Crect x='10' y='34' width='20' height='20' rx='4' fill='%238a82ef'/%3E%3Crect x='34' y='34' width='20' height='20' rx='4' fill='%23a777e3'/%3E%3C/svg%3E">
+<link rel="manifest" href='data:application/manifest+json,{"name":"Drive Viewer","short_name":"Viewer","display":"standalone","background_color":"%230b0b0f","theme_color":"%230b0b0f","start_url":".","icons":[{"src":"data:image/svg+xml,%253Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%253E%253Crect width=%2764%27 height=%2764%27 fill=%27%25230b0b0f%27/%253E%253Crect x=%2710%27 y=%2710%27 width=%2720%27 height=%2720%27 rx=%274%27 fill=%27%25236e8efb%27/%253E%253Crect x=%2734%27 y=%2710%27 width=%2720%27 height=%2720%27 rx=%274%27 fill=%27%25238a82ef%27/%253E%253Crect x=%2710%27 y=%2734%27 width=%2720%27 height=%2720%27 rx=%274%27 fill=%27%25238a82ef%27/%253E%253Crect x=%2734%27 y=%2734%27 width=%2720%27 height=%2720%27 rx=%274%27 fill=%27%2523a777e3%27/%253E%253C/svg%253E","sizes":"any","type":"image/svg+xml"}]}'>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
-  --bg: #0a0a0a; --surface: #141414; --surface2: #1e1e1e; --surface3: #282828;
-  --text: #e8e8e8; --text2: #888; --accent: #6e8efb; --accent2: #a777e3;
-  --radius: 6px; --gap: 4px; --thumb: 180px;
+  --bg: #0b0b0f; --surface: #14141a; --surface2: #1c1c24; --surface3: #262630;
+  --line: rgba(255,255,255,.07); --line2: rgba(255,255,255,.13);
+  --text: #ecebf3; --text2: #8f8fa3; --text3: #5d5d70;
+  --accent: #6e8efb; --accent2: #a777e3;
+  --ok: #4fd18b; --warn: #f5b84c; --bad: #f36a6a;
+  --radius: 8px; --gap: 4px;
+  --top: 52px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, system-ui, sans-serif;
 }
 
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+html, body {
+  height: 100%; height: 100dvh; background: var(--bg); color: var(--text);
+  font-family: var(--font); font-size: 13px; overflow: hidden;
+  -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--accent); }
+::selection { background: rgba(110,142,251,.35); }
 
-/* ---- Top bar ---- */
+/* ---------- Generic controls ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--surface2); color: var(--text); font-size: 12.5px; white-space: nowrap;
+  transition: background .12s, border-color .12s, transform .08s; user-select: none;
+}
+.btn:hover { background: var(--surface3); border-color: var(--line2); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); border-color: transparent; color: #fff; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.icon { width: 32px; padding: 0; font-size: 16px; }
+.btn input[type="file"] { display: none; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.field label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; }
+.field input {
+  height: 36px; padding: 0 11px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); outline: none; font-size: 13px;
+}
+.field input:focus { border-color: var(--accent); }
+select.ctl, input.ctl {
+  height: 32px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--surface2); color: var(--text); outline: none; font-size: 12.5px;
+}
+select.ctl { padding-right: 26px; appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f8fa3' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; }
+input.ctl:focus, select.ctl:focus { border-color: var(--accent); }
+input.ctl::placeholder { color: var(--text3); }
+kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--line2); font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace; color: var(--text2); }
+
+/* ---------- Top bar ---------- */
 #topbar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 48px;
-  display: none; align-items: center; gap: 10px; padding: 0 12px;
-  background: rgba(10,10,10,.88); backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  position: fixed; inset: 0 0 auto 0; z-index: 100; height: calc(var(--top) + var(--safe-top));
+  padding: var(--safe-top) 12px 0; display: none; align-items: center; gap: 8px;
+  background: rgba(11,11,15,.82); backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border-bottom: 1px solid var(--line);
 }
-#topbar .logo { font-weight: 700; font-size: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-#topbar .sep { width: 1px; height: 22px; background: rgba(255,255,255,.1); }
-#topbar button, #topbar label {
-  display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px;
-  background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px;
-  color: var(--text); font-size: 12px; cursor: pointer; transition: background .12s; white-space: nowrap;
-}
-#topbar button:hover, #topbar label:hover { background: var(--surface3); }
-#topbar input[type="file"] { display: none; }
-#filterInput { background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--text); padding: 5px 10px; font-size: 12px; width: 160px; outline: none; }
-#filterInput:focus { border-color: var(--accent); }
-#filterInput::placeholder { color: var(--text2); }
-#sortSelect { background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--text); padding: 5px 8px; font-size: 12px; cursor: pointer; }
-#typeFilter { background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--text); padding: 5px 8px; font-size: 12px; cursor: pointer; }
-#dateFrom, #dateTo { background: var(--surface2); border: 1px solid rgba(255,255,255,.08); border-radius: 5px; color: var(--text); padding: 4px 6px; font-size: 11px; width: 122px; color-scheme: dark; }
-.spacer { flex: 1; }
-#counter { font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; }
-#sizeSlider { width: 80px; accent-color: var(--accent); cursor: pointer; }
+#topbar.show { display: flex; }
+#topbar .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; letter-spacing: -.01em; margin-right: 2px; }
+#topbar .logo .mark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+#topbar .sep { width: 1px; height: 22px; background: var(--line); }
+#topbar .spacer { flex: 1; }
+#filterWrap { position: relative; display: flex; align-items: center; }
+#filterInput { width: 220px; padding-left: 30px; }
+#filterWrap::before { content: ''; position: absolute; left: 10px; width: 12px; height: 12px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f8fa3' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") center/contain no-repeat; }
+#filterClear { position: absolute; right: 6px; width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--surface3); color: var(--text2); font-size: 13px; line-height: 1; display: none; align-items: center; justify-content: center; }
+#filterClear.show { display: flex; }
+.chips { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--line); gap: 2px; }
+.chips button { height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text2); font-size: 12px; font-weight: 500; }
+.chips button:hover { color: var(--text); }
+.chips button.on { background: var(--surface3); color: var(--text); box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+#sizeSlider { width: 110px; accent-color: var(--accent); }
+#status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text2); white-space: nowrap; }
+#status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); flex: none; transition: background .3s; }
+#status.ok .dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(79,209,139,.15); }
+#status.busy .dot { background: var(--accent); animation: pulse 1s infinite; }
+#status.warn .dot { background: var(--warn); }
+#status.bad .dot { background: var(--bad); }
+@keyframes pulse { 50% { opacity: .35; } }
+#btnMenu { display: none; }
 
-/* ---- Welcome ---- */
+/* ---------- Banner (auth etc.) ---------- */
+#banner {
+  position: fixed; top: calc(var(--top) + var(--safe-top)); left: 0; right: 0; z-index: 99;
+  display: none; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px;
+  background: rgba(245,184,76,.12); border-bottom: 1px solid rgba(245,184,76,.25); color: #f8d38a; font-size: 12.5px;
+}
+#banner.show { display: flex; }
+#banner .btn { height: 26px; padding: 0 10px; font-size: 12px; background: rgba(245,184,76,.18); border-color: rgba(245,184,76,.35); color: #ffe4b0; }
+
+/* ---------- Welcome ---------- */
 #welcome {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  height: 100%; gap: 20px;
+  height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 24px; gap: 18px;
+  background: radial-gradient(900px 500px at 50% -10%, rgba(110,142,251,.16), transparent 60%),
+              radial-gradient(700px 400px at 90% 110%, rgba(167,119,227,.12), transparent 60%);
 }
-#welcome h1 { font-size: 28px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-#welcome p { color: var(--text2); font-size: 14px; max-width: 400px; text-align: center; line-height: 1.6; }
-#welcome .actions { display: flex; gap: 12px; margin-top: 8px; }
-#welcome button, #welcome label {
-  padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
-  border: 1px solid rgba(255,255,255,.1); transition: all .15s;
-}
-#welcome .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; }
-#welcome .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
-#welcome .btn-secondary { background: var(--surface2); color: var(--text); }
-#welcome .btn-secondary:hover { background: var(--surface3); }
-#welcome .hint { font-size: 11px; color: var(--text2); }
-#welcome kbd { background: var(--surface3); padding: 1px 5px; border-radius: 3px; font-size: 10px; border: 1px solid rgba(255,255,255,.08); }
+#welcome .mark { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 12px 40px -10px rgba(110,142,251,.6); }
+#welcome h1 { font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
+#welcome p { color: var(--text2); max-width: 420px; line-height: 1.55; font-size: 14px; }
+#welcome .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+#welcome .actions .btn { height: 40px; padding: 0 18px; font-size: 14px; border-radius: 10px; }
+#welcome .hint { display: flex; flex-wrap: wrap; gap: 6px 10px; justify-content: center; margin-top: 8px; color: var(--text3); font-size: 12px; }
+#welcome .sub { color: var(--text3); font-size: 12px; }
+#pwaHint { display: none; margin-top: 4px; padding: 10px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); color: var(--text2); font-size: 12.5px; }
 
-/* ---- Grid ---- */
-#grid-wrap { position: fixed; top: 48px; left: 0; right: 0; bottom: 0; overflow-y: auto; overflow-x: hidden; }
-#grid {
-  position: relative;
-  width: 100%;
+/* ---------- Grid ---------- */
+#grid-wrap {
+  position: absolute; inset: calc(var(--top) + var(--safe-top)) 0 0 0; display: none;
+  overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  padding-bottom: var(--safe-bot);
 }
+#grid-wrap.show { display: block; }
+#grid-wrap.banner { top: calc(var(--top) + var(--safe-top) + 39px); }
+#grid { position: relative; width: 100%; }
 .thumb {
-  position: absolute; border-radius: var(--radius); overflow: hidden; cursor: pointer;
-  background: var(--surface);
-  will-change: transform;
+  position: absolute; border-radius: var(--radius); overflow: hidden; background: var(--surface);
+  cursor: pointer; contain: strict; will-change: transform;
+  outline: 2px solid transparent; outline-offset: -2px; transition: outline-color .15s;
 }
-.thumb:hover { transform: scale(1.03); box-shadow: 0 6px 24px rgba(0,0,0,.6); z-index: 2; }
-.thumb.active { outline: 2px solid var(--accent); outline-offset: -2px; }
-.thumb img, .thumb video {
-  width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0;
-}
-.thumb img.loaded, .thumb video.loaded { opacity: 1; }
-.thumb .badge {
-  position: absolute; top: 4px; left: 4px; padding: 1px 6px; border-radius: 3px;
-  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
-  pointer-events: none;
-}
-.badge-vid { background: rgba(110,142,251,.85); color: #fff; }
+.thumb::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, var(--surface) 30%, var(--surface2) 50%, var(--surface) 70%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+.thumb.ready::before { display: none; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.thumb img, .thumb video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .18s; display: block; }
+.thumb.ready img, .thumb.ready video { opacity: 1; }
+.thumb.broken::after { content: '⚠'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--text3); font-size: 22px; }
 .thumb .fname {
-  position: absolute; bottom: 0; left: 0; right: 0; padding: 4px 6px;
-  font-size: 10px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.75));
-  opacity: 0; transition: opacity .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 6px; font-size: 11px; color: #fff;
+  background: linear-gradient(transparent, rgba(0,0,0,.75)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity .15s; pointer-events: none;
 }
 .thumb:hover .fname { opacity: 1; }
-
-/* ---- Lightbox ---- */
-#lightbox {
-  position: fixed; inset: 0; z-index: 200; display: none; align-items: center; justify-content: center;
-  background: rgba(0,0,0,.95);
+.thumb.active { outline-color: var(--accent); }
+.thumb .badge {
+  position: absolute; top: 6px; right: 6px; padding: 2px 6px; border-radius: 5px; font-size: 10px; font-weight: 700;
+  background: rgba(0,0,0,.65); color: #fff; letter-spacing: .04em; backdrop-filter: blur(6px);
 }
-#lightbox.open { display: flex; }
-#lb-media {
-  max-width: 95vw; max-height: calc(95vh - 40px); object-fit: contain;
-  user-select: none; -webkit-user-drag: none; will-change: transform;
-  transition: transform .06s ease; transform-origin: 0 0;
-}
-video#lb-media { outline: none; }
-#lb-info {
-  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-  background: rgba(20,20,20,.9); backdrop-filter: blur(12px); border-radius: 8px;
-  padding: 6px 16px; font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums;
-  display: flex; gap: 14px; align-items: center; border: 1px solid rgba(255,255,255,.06);
-  pointer-events: none;
-}
-#lb-info .idx { color: var(--text); font-weight: 600; }
-#lb-close {
-  position: fixed; top: 12px; right: 12px; z-index: 202; width: 36px; height: 36px;
-  border-radius: 50%; background: rgba(255,255,255,.1); border: none;
-  color: #fff; font-size: 18px; cursor: pointer; transition: background .12s;
-  display: flex; align-items: center; justify-content: center;
-}
-#lb-close:hover { background: rgba(255,255,255,.2); }
-.lb-arrow {
-  position: fixed; top: 50%; transform: translateY(-50%); z-index: 201;
-  width: 40px; height: 40px; border-radius: 50%;
-  background: rgba(255,255,255,.08); border: none;
-  color: #fff; font-size: 20px; cursor: pointer; transition: background .12s;
-  display: flex; align-items: center; justify-content: center;
-}
-.lb-arrow:hover { background: rgba(255,255,255,.18); }
-#lb-prev { left: 12px; }
-#lb-next { right: 12px; }
-
-#lb-toolbar {
-  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 202;
-  display: flex; align-items: center; gap: 4px;
-  background: rgba(20,20,20,.9); backdrop-filter: blur(12px); border-radius: 10px;
-  padding: 6px 8px; border: 1px solid rgba(255,255,255,.06);
-}
-#lb-toolbar button {
-  width: 30px; height: 30px; border-radius: 6px; background: rgba(255,255,255,.08); border: none;
-  color: #fff; font-size: 14px; cursor: pointer; transition: background .12s;
-  display: flex; align-items: center; justify-content: center;
-}
-#lb-toolbar button:hover { background: rgba(255,255,255,.2); }
-#lb-toolbar button.active { background: var(--accent); }
-#lb-toolbar .lb-tb-sep { width: 1px; height: 18px; background: rgba(255,255,255,.15); margin: 0 2px; }
-
-/* Scrollbar */
-#grid-wrap::-webkit-scrollbar { width: 6px; }
-#grid-wrap::-webkit-scrollbar-track { background: transparent; }
-#grid-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
-
-/* Loading */
-.loading { display: none; padding: 40px; }
-.loading.active { display: flex; align-items: center; justify-content: center; }
-.spinner { width: 28px; height: 28px; border: 2px solid rgba(255,255,255,.1); border-top-color: var(--accent); border-radius: 50%; animation: spin .5s linear infinite; }
+.thumb .badge.play { top: auto; right: auto; left: 50%; bottom: 50%; transform: translate(-50%, 50%); width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; padding: 0 0 0 3px; font-size: 14px; background: rgba(0,0,0,.5); border: 1.5px solid rgba(255,255,255,.7); }
+.thumb .badge.new { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+#empty { position: absolute; inset: 0; display: none; place-items: center; color: var(--text3); font-size: 14px; text-align: center; padding: 24px; }
+#empty.show { display: grid; }
+#loading { position: fixed; top: calc(var(--top) + var(--safe-top) + 14px); right: 14px; z-index: 60; display: none; }
+#loading.active { display: block; }
+.spinner { width: 20px; height: 20px; border: 2px solid var(--line2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Drive modal */
-#driveModal {
-  position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center;
-  background: rgba(0,0,0,.7); backdrop-filter: blur(8px);
+/* ---------- Lightbox ---------- */
+#lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.96); display: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+#lightbox.open { display: block; }
+#lb-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#lb-stage img, #lb-stage video { max-width: 100vw; max-height: 100dvh; object-fit: contain; transform-origin: center center; will-change: transform; display: block; }
+#lb-stage img { -webkit-user-drag: none; cursor: zoom-in; }
+#lb-stage.zoomed img { cursor: grab; }
+#lb-stage.dragging img { cursor: grabbing; }
+#lb-stage video { outline: none; background: #000; }
+#lb-top {
+  position: absolute; top: 0; left: 0; right: 0; padding: calc(var(--safe-top) + 8px) 10px 10px; display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(rgba(0,0,0,.75), transparent); opacity: 1; transition: opacity .25s;
 }
-#driveModal.open { display: flex; }
-#driveModal .modal {
-  background: var(--surface); border: 1px solid rgba(255,255,255,.08); border-radius: 14px;
-  padding: 28px; width: 420px; max-width: 90vw;
+#lightbox.hideui #lb-top, #lightbox.hideui .lb-arrow { opacity: 0; pointer-events: none; }
+#lb-top .btn { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.1); color: #fff; }
+#lb-top .btn:hover { background: rgba(255,255,255,.16); }
+#lb-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#lb-name { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lb-meta { font-size: 11.5px; color: rgba(255,255,255,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lb-meta .folder { color: var(--accent); cursor: pointer; }
+#lb-meta .folder:hover { text-decoration: underline; }
+#lb-meta .sep { margin: 0 6px; opacity: .5; }
+.lb-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 82px; border: 0; border-radius: 10px;
+  background: rgba(255,255,255,.06); color: #fff; font-size: 34px; line-height: 1; transition: background .15s, opacity .25s; display: grid; place-items: center;
 }
-#driveModal h2 { font-size: 17px; margin-bottom: 14px; }
-#driveModal .field { margin-bottom: 12px; }
-#driveModal .field label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 3px; }
-#driveModal .field input {
-  width: 100%; padding: 7px 10px; background: var(--surface2); border: 1px solid rgba(255,255,255,.1);
-  border-radius: 5px; color: var(--text); font-size: 12px; outline: none;
+.lb-arrow:hover { background: rgba(255,255,255,.16); }
+#lb-prev { left: 14px; } #lb-next { right: 14px; }
+#lb-progress { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-bot) + 0px); height: 3px; background: rgba(255,255,255,.08); display: none; }
+#lb-progress.show { display: block; }
+#lb-progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .15s; }
+#lb-zoom { position: absolute; bottom: calc(var(--safe-bot) + 14px); left: 50%; transform: translateX(-50%); padding: 4px 10px; border-radius: 20px; background: rgba(0,0,0,.6); color: #fff; font-size: 11.5px; display: none; }
+#lb-zoom.show { display: block; }
+
+/* ---------- Modal ---------- */
+.modal-bg { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.65); backdrop-filter: blur(6px); padding: 20px; }
+.modal-bg.open { display: flex; }
+.modal { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--line2); border-radius: 14px; padding: 22px; box-shadow: 0 30px 80px -20px rgba(0,0,0,.9); }
+.modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 4px; letter-spacing: -.01em; }
+.modal p.hint { font-size: 12.5px; color: var(--text2); line-height: 1.5; margin-bottom: 16px; }
+.modal .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.modal .danger { color: var(--bad); margin-right: auto; }
+
+/* ---------- Sheet (mobile menu) ---------- */
+#sheetBg { position: fixed; inset: 0; z-index: 150; background: rgba(0,0,0,.5); display: none; }
+#sheetBg.open { display: block; }
+#sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 160; transform: translateY(105%); transition: transform .25s cubic-bezier(.2,.8,.2,1);
+  background: var(--surface); border-top: 1px solid var(--line2); border-radius: 16px 16px 0 0; padding: 12px 16px calc(var(--safe-bot) + 16px);
 }
-#driveModal .field input:focus { border-color: var(--accent); }
-#driveModal .btns { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
-#driveModal .btns button { padding: 7px 18px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; }
-#driveModal .cancel { background: var(--surface3); color: var(--text); }
-#driveModal .connect { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font-weight: 600; }
+#sheet.open { transform: none; }
+#sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--line2); margin: 0 auto 12px; }
+#sheet h3 { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .07em; margin: 12px 0 8px; }
+#sheet .row { display: flex; gap: 8px; flex-wrap: wrap; }
+#sheet .row .btn, #sheet select { flex: 1; height: 38px; }
+#sheet input[type=range] { width: 100%; accent-color: var(--accent); }
+
+/* ---------- Toasts ---------- */
+#toasts { position: fixed; left: 50%; bottom: calc(var(--safe-bot) + 18px); transform: translateX(-50%); z-index: 400; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast { padding: 9px 14px; border-radius: 10px; background: rgba(28,28,36,.92); border: 1px solid var(--line2); color: var(--text); font-size: 12.5px; box-shadow: 0 10px 30px -10px rgba(0,0,0,.8); animation: toastin .2s ease-out; max-width: 90vw; }
+.toast.bad { border-color: rgba(243,106,106,.4); color: #ffb4b4; }
+.toast.ok { border-color: rgba(79,209,139,.35); }
+@keyframes toastin { from { opacity: 0; transform: translateY(8px); } }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  #topbar .logo span, #topbar .desk { display: none; }
+  #btnMenu { display: inline-flex; }
+  #filterInput { width: 100%; }
+  #filterWrap { flex: 1; }
+  #topbar .spacer { display: none; }
+  #status { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; }
+  .thumb .fname { display: none; }
+  .lb-arrow { display: none; }
+  #lb-top .btn.desk { display: none; }
+}
+@media (min-width: 861px) { #sheet, #sheetBg { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 
 <div id="topbar">
-  <span class="logo">Drive Viewer</span>
-  <span class="sep"></span>
-  <label for="folderPickerSmall">📁 Open<input type="file" id="folderPickerSmall" webkitdirectory multiple></label>
-  <button id="btnDriveSmall">☁ Drive</button>
-  <button id="btnReload">↺ Reload</button>
-  <span class="sep"></span>
-  <input type="text" id="filterInput" placeholder="Filter...">
-  <select id="typeFilter"><option value="all" selected>All types</option><option value="image">Images only</option><option value="video">Videos only</option></select>
-  <input type="date" id="dateFrom" title="From date">
-  <input type="date" id="dateTo" title="To date">
-  <select id="sortSelect"><option value="date-new" selected>Newest</option><option value="date-old">Oldest</option><option value="name-asc">A-Z</option><option value="name-desc">Z-A</option></select>
-  <span class="sep"></span>
-  <input type="range" id="sizeSlider" min="80" max="400" value="180" title="Thumb size">
+  <div class="logo"><i class="mark"></i><span>Drive Viewer</span></div>
+  <button id="btnMenu" class="btn icon" aria-label="Menu">☰</button>
+  <span class="sep desk"></span>
+  <label class="btn desk" for="folderPickerSmall">📁 Map<input type="file" id="folderPickerSmall" webkitdirectory multiple></label>
+  <button id="btnDriveSmall" class="btn desk">☁ Drive</button>
+  <button id="btnSync" class="btn desk" title="Nieuwe bestanden ophalen (S)">↻ Sync</button>
+  <span class="sep desk"></span>
+  <div id="filterWrap"><input type="text" id="filterInput" class="ctl" placeholder="Filter op naam of map… ( / )" autocomplete="off" autocapitalize="off"><button id="filterClear" aria-label="Wis filter">×</button></div>
+  <div class="chips desk" id="kindChips"><button data-kind="all" class="on">Alles</button><button data-kind="img">Foto's</button><button data-kind="vid">Video's</button></div>
+  <select id="sortSelect" class="ctl desk"><option value="date-new" selected>Nieuwste eerst</option><option value="date-old">Oudste eerst</option><option value="name-asc">Naam A–Z</option><option value="name-desc">Naam Z–A</option></select>
+  <input type="range" id="sizeSlider" class="desk" min="90" max="420" value="200" title="Thumbnail-grootte">
   <span class="spacer"></span>
-  <span id="counter"></span>
+  <span id="status"><i class="dot"></i><span id="statusText"></span></span>
 </div>
+<div id="banner"><span id="bannerText">Sessie verlopen.</span><button class="btn" id="bannerBtn">Opnieuw verbinden</button></div>
 
 <div id="welcome">
+  <div class="mark"></div>
   <h1>Drive Viewer</h1>
-  <p>Ultra-fast media browser. Drag a folder, open from disk, or connect Google Drive.</p>
+  <p>Razendsnel door je renders bladeren. De lijst wordt lokaal gecached en alleen de wijzigingen worden opgehaald, dus openen is direct.</p>
   <div class="actions">
-    <label class="btn-primary" for="folderPicker">Open Folder<input type="file" id="folderPicker" webkitdirectory multiple style="display:none"></label>
-    <button class="btn-secondary" id="btnDrive">Google Drive</button>
+    <button class="btn primary" id="btnReconnect" style="display:none">↻ Verbind <span id="rcFolder" style="opacity:.8;font-weight:400"></span></button>
+    <button class="btn" id="btnDrive">☁ Google Drive</button>
+    <label class="btn" for="folderPicker" id="folderPickerLabel">📁 Open lokale map<input type="file" id="folderPicker" webkitdirectory multiple></label>
   </div>
-  <div class="hint"><kbd>←</kbd><kbd>→</kbd> navigate · <kbd>F</kbd> fit · <kbd>1</kbd> 1:1 · <kbd>R</kbd> rotate · <kbd>S</kbd> slideshow · <kbd>Enter</kbd> fullscreen · scroll zoom · <kbd>Space</kbd> play/pause · <kbd>Esc</kbd> close · drag &amp; drop folder</div>
+  <div class="sub" id="welcomeSub"></div>
+  <div class="hint"><span><kbd>←</kbd><kbd>→</kbd> bladeren</span><span><kbd>/</kbd> filter</span><span><kbd>F</kbd> passend</span><span>scroll = zoom</span><span><kbd>Space</kbd> play</span><span><kbd>S</kbd> sync</span><span><kbd>Esc</kbd> sluiten</span><span>sleep een map hierheen</span></div>
+  <div id="pwaHint">Tip: tik op <b>Deel</b> → <b>Zet op beginscherm</b> om dit als app te gebruiken.</div>
 </div>
 
-<div id="grid-wrap" style="display:none">
+<div id="grid-wrap">
   <div id="grid"></div>
-  <div class="loading" id="loading"><div class="spinner"></div></div>
+  <div id="empty"></div>
 </div>
+<div id="loading"><div class="spinner"></div></div>
 
 <div id="lightbox">
-  <img id="lb-media" draggable="false">
-  <button id="lb-close">&times;</button>
-  <button class="lb-arrow" id="lb-prev">&#8249;</button>
-  <button class="lb-arrow" id="lb-next">&#8250;</button>
-  <div id="lb-info"><span class="idx" id="lb-counter"></span><span id="lb-name"></span><span id="lb-dim"></span></div>
-  <div id="lb-toolbar">
-    <button id="lb-rotate-l" title="Rotate left (Shift+R)">⟲</button>
-    <button id="lb-rotate-r" title="Rotate right (R)">⟳</button>
-    <span class="lb-tb-sep"></span>
-    <button id="lb-zoom-out" title="Zoom out (-)">&minus;</button>
-    <button id="lb-fit" title="Fit to screen (F)">⤢</button>
-    <button id="lb-actual" title="Actual size (1)">1:1</button>
-    <button id="lb-zoom-in" title="Zoom in (+)">+</button>
-    <span class="lb-tb-sep"></span>
-    <button id="lb-slideshow" title="Slideshow (S)">&#9654;</button>
-    <button id="lb-fullscreen" title="Fullscreen (Enter)">⛶</button>
+  <div id="lb-stage"></div>
+  <div id="lb-top">
+    <button id="lb-close" class="btn icon" aria-label="Sluiten">×</button>
+    <div id="lb-info"><div id="lb-name"></div><div id="lb-meta"></div></div>
+    <button id="lb-open" class="btn icon" title="Open in Drive / nieuw tabblad">↗</button>
+    <button id="lb-dl" class="btn icon desk" title="Download">⤓</button>
+  </div>
+  <button class="lb-arrow" id="lb-prev" aria-label="Vorige">‹</button>
+  <button class="lb-arrow" id="lb-next" aria-label="Volgende">›</button>
+  <div id="lb-zoom"></div>
+  <div id="lb-progress"><i></i></div>
+</div>
+
+<div class="modal-bg" id="driveModal">
+  <div class="modal">
+    <h2>Verbind met Google Drive</h2>
+    <p class="hint">OAuth-client (type <i>Web application</i>) uit <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a>. Zet dit adres bij <i>Authorized redirect URIs</i>: <code id="originCode"></code>. Je logt één keer in; daarna wordt de sessie automatisch verlengd.</p>
+    <div class="field"><label>Client ID</label><input id="driveClientId" placeholder="123…apps.googleusercontent.com" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+    <div class="field"><label>Client Secret</label><input id="driveClientSecret" type="password" placeholder="GOCSPX-…" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+    <div class="field"><label>Map (naam in My Drive)</label><input id="driveFolderName" value="ComfyUI-Results" spellcheck="false" autocapitalize="off"></div>
+    <div class="btns"><button class="btn danger" id="driveForget" style="border-color:transparent;background:transparent">Cache & login wissen</button><button class="btn" id="driveCancel">Annuleer</button><button class="btn primary" id="driveConnect">Verbind</button></div>
   </div>
 </div>
 
-<div id="driveModal">
-  <div class="modal">
-    <h2>Connect Google Drive</h2>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5">OAuth Client (Web application) from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent)">console.cloud.google.com</a> — add this exact page URL as an Authorized redirect URI.</p>
-    <div class="field"><label>Client ID</label><input id="driveClientId" placeholder="123...apps.googleusercontent.com" spellcheck="false"></div>
-    <div class="field"><label>Client Secret</label><input id="driveClientSecret" placeholder="GOCSPX-..." spellcheck="false"></div>
-    <div class="field"><label>API Key (optional)</label><input id="driveApiKey" placeholder="AIza..." spellcheck="false"></div>
-    <div class="field"><label>Folder</label><input id="driveFolderName" value="ComfyUI-Results" spellcheck="false"></div>
-    <div class="btns"><button class="cancel" id="driveCancel">Cancel</button><button class="connect" id="driveConnect">Connect</button></div>
-  </div>
+<div id="sheetBg"></div>
+<div id="sheet">
+  <div class="grab"></div>
+  <h3>Bron</h3>
+  <div class="row"><button id="btnDriveSheet" class="btn">☁ Drive</button><button id="btnSyncSheet" class="btn">↻ Sync</button><label class="btn" for="folderPickerSheet">📁 Map<input type="file" id="folderPickerSheet" webkitdirectory multiple></label></div>
+  <h3>Toon</h3>
+  <div class="row chips" id="kindChipsSheet" style="display:flex"><button data-kind="all" class="on">Alles</button><button data-kind="img">Foto's</button><button data-kind="vid">Video's</button></div>
+  <h3>Sortering</h3>
+  <div class="row"><select id="sortSelectSheet" class="ctl"><option value="date-new">Nieuwste eerst</option><option value="date-old">Oudste eerst</option><option value="name-asc">Naam A–Z</option><option value="name-desc">Naam Z–A</option></select></div>
+  <h3>Thumbnail-grootte</h3>
+  <input type="range" id="sizeSliderSheet" min="70" max="260" value="120">
 </div>
+
+<div id="toasts"></div>
 
 <script>
-// State
-let allMedia = [], filtered = [], currentIdx = -1;
-let scale = 1, panX = 0, panY = 0, isFitted = true, naturalW = 0, naturalH = 0, rotation = 0;
-let isDragging = false, dragSX = 0, dragSY = 0, panSX = 0, panSY = 0;
-const preloaded = new Map();
-let thumbSize = 180;
-const gap = 4;
+'use strict';
+/* =====================================================================
+   Drive Viewer — één bestand, desktop + mobiel.
+
+   Snelheid:
+   - Geen gapi/discovery-doc: directe fetch() naar de Drive REST API.
+   - Volledige lijst in IndexedDB. Bij openen staat de grid er binnen
+     ~100 ms; daarna worden alleen de wijzigingen (Changes API) opgehaald.
+   - Eerste volledige scan: 50 mappen per query, 8 queries parallel,
+     pipelined met het ophalen van de submappen, progressief gerenderd.
+   Auth:
+   - Authorization-code + PKCE via full-page redirect → refresh_token.
+     Access-tokens worden zonder popup/iframe/cookies vernieuwd via het
+     token-endpoint (5 min vóór verval, en bij elke 401). GIS' stille
+     iframe-refresh faalt met geblokkeerde third-party cookies; dit niet.
+   ===================================================================== */
 
 const $ = id => document.getElementById(id);
-const grid = $('grid'), gridWrap = $('grid-wrap'), topbar = $('topbar'), welcome = $('welcome');
-const lightbox = $('lightbox'), lbCounter = $('lb-counter'), lbName = $('lb-name'), lbDim = $('lb-dim');
-const filterInput = $('filterInput'), sortSelect = $('sortSelect'), counter = $('counter');
-const typeFilter = $('typeFilter'), dateFrom = $('dateFrom'), dateTo = $('dateTo');
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
+const IS_STANDALONE = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+const SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+const API = 'https://www.googleapis.com/drive/v3/';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+const THUMB_S = 440;      // thumbnail-breedte bij Google (=sNNN)
+const FULL_S = 2560;      // lightbox-breedte
 
-function isVideo(name) { return /\.(mp4|webm|mov|avi|mkv)$/i.test(name); }
-function isMedia(name) { return /\.(jpe?g|png|webp|gif|bmp|avif|mp4|webm|mov)$/i.test(name); }
-function isExcluded(name) {
-  const lower = name.toLowerCase().replace(/\\/g, '/');
+const VIDEO_RE = /\.(mp4|webm|mov|m4v|avi|mkv)$/i;
+const MEDIA_RE = /\.(jpe?g|png|webp|gif|bmp|avif|mp4|webm|mov|m4v)$/i;
+const isVideoName = n => VIDEO_RE.test(n);
+const isMediaName = n => MEDIA_RE.test(n);
+function isExcluded(path) {
+  const lower = path.toLowerCase().replace(/\\/g, '/');
   if (lower.includes('tmp/') || lower.includes('media_thumbs')) return true;
   const base = lower.split('/').pop();
-  return /^debug_mask|^mask|_mask\.|^thumb/i.test(base);
+  return /^debug_mask|^mask|_mask\.|^thumb/.test(base);
+}
+const nf = new Intl.NumberFormat('nl-NL');
+const fmtNum = n => nf.format(n);
+function fmtBytes(b) { if (!b) return ''; const u = ['B', 'KB', 'MB', 'GB']; let i = 0; while (b >= 1024 && i < 3) { b /= 1024; i++; } return b.toFixed(i ? 1 : 0) + ' ' + u[i]; }
+function fmtDate(t) { return new Date(t).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+function fmtAgo(t) {
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 45) return 'zojuist'; if (s < 3600) return Math.round(s / 60) + ' min geleden';
+  if (s < 86400) return Math.round(s / 3600) + ' u geleden'; return Math.round(s / 86400) + ' d geleden';
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const collator = new Intl.Collator('nl', { numeric: true, sensitivity: 'base' });
+
+/* ---------------- UI helpers ---------------- */
+const statusEl = $('status'), statusText = $('statusText');
+function setStatus(kind, text, title) { statusEl.className = kind; statusText.textContent = text; statusEl.title = title || text; }
+function toast(msg, kind = '', ms = 3200) {
+  const t = document.createElement('div'); t.className = 'toast ' + kind; t.textContent = msg; $('toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, ms);
+}
+function showBanner(text, btnText, onClick) {
+  $('bannerText').textContent = text; $('bannerBtn').textContent = btnText || 'OK'; $('bannerBtn').onclick = onClick;
+  $('banner').classList.add('show'); $('grid-wrap').classList.add('banner');
+}
+function hideBanner() { $('banner').classList.remove('show'); $('grid-wrap').classList.remove('banner'); }
+function describeError(e) {
+  if (!e) return 'Onbekende fout';
+  if (e.status === 403 && /accessNotConfigured|disabled/i.test(e.body || '')) return 'Drive API staat niet aan voor dit Google Cloud-project.';
+  if (e.status === 403) return 'Geen toegang (403). Controleer de OAuth-client en de scope.';
+  if (e.status === 404) return 'Niet gevonden (404).';
+  return e.message || String(e);
 }
 
-// ── Thumb size slider ──
-$('sizeSlider').addEventListener('input', e => {
-  document.documentElement.style.setProperty('--thumb', e.target.value + 'px');
-  thumbSize = parseInt(e.target.value);
-  if (filtered.length && calcGridLayout()) {
-    for (const [i, el] of liveNodes) {
-      const row = Math.floor(i / vCols);
-      const col = i % vCols;
-      el.style.left = (gap + col * (vColW + gap)) + 'px';
-      el.style.top = (gap + row * (vRowH + gap)) + 'px';
-      el.style.width = vColW + 'px';
-      el.style.height = vRowH + 'px';
-    }
-    syncVisibleNodes();
-  }
-});
+/* ---------------- State ---------------- */
+const S = {
+  source: 'none',        // none | local | drive
+  items: [],             // alle items
+  sorted: [],            // items in huidige sortering
+  filtered: [],          // sorted na filter
+  sort: localStorage.getItem('dv_sort') || 'date-new',
+  kind: 'all',
+  query: '',
+  idx: -1,               // index in filtered (lightbox)
+  thumb: parseInt(localStorage.getItem('dv_thumb') || (IS_TOUCH ? '120' : '200')),
+  gap: IS_TOUCH ? 3 : 4,
+  newSince: 0,           // items nieuwer dan dit krijgen een 'nieuw'-badge
+};
+// Item: { id, fn (bestandsnaam), name (pad), lname, date, video, tb (thumb-base), p (parent), size, local?, blob? }
+function thumbUrl(m) { return m.local ? m.blob : m.tb ? `${m.tb}=s${THUMB_S}` : `https://drive.google.com/thumbnail?id=${m.id}&sz=w${THUMB_S}`; }
+function fullUrl(m) { return m.local ? m.blob : m.tb ? `${m.tb}=s${FULL_S}` : `https://drive.google.com/thumbnail?id=${m.id}&sz=w${FULL_S}`; }
 
-// ── Local folder ──
-function handleFolder(e) {
-  const files = Array.from(e.target.files).filter(f => isMedia(f.name) && !isExcluded(f.webkitRelativePath || f.name));
-  if (!files.length) return;
-  allMedia = files.map(f => ({
-    name: f.webkitRelativePath || f.name,
-    url: URL.createObjectURL(f),
-    thumbUrl: URL.createObjectURL(f),
-    date: f.lastModified || Date.now(),
-    video: isVideo(f.name),
-    file: f
-  }));
-  showGrid();
-}
-$('folderPicker').addEventListener('change', handleFolder);
-$('folderPickerSmall').addEventListener('change', handleFolder);
+/* ---------------- Grid (virtueel) ---------------- */
+const grid = $('grid'), gridWrap = $('grid-wrap'), topbar = $('topbar'), welcome = $('welcome');
+const live = new Map();     // idx -> element
+let vCols = 0, vColW = 0, vRowH = 0, vRows = 0, rafId = 0;
 
-// ── Grid (virtual scroll) ──
-const liveNodes = new Map(); // index -> DOM element
-let rafId = 0;
-let vCols = 0, vColW = 0, vRowH = 0, vTotalRows = 0;
-
-function calcGridLayout() {
-  const W = gridWrap.clientWidth;
-  if (!W) return false;
-  vCols = Math.max(1, Math.floor((W - gap) / (thumbSize + gap)));
-  vColW = (W - gap * (vCols + 1)) / vCols;
-  vRowH = vColW; // square thumbs
-  vTotalRows = Math.ceil(filtered.length / vCols);
-  grid.style.height = (vTotalRows * (vRowH + gap) + gap) + 'px';
+function calcLayout() {
+  const W = gridWrap.clientWidth; if (!W) return false;
+  const g = S.gap;
+  vCols = Math.max(W < 600 ? 3 : 1, Math.floor((W - g) / (S.thumb + g)));
+  vColW = (W - g * (vCols + 1)) / vCols; vRowH = vColW;
+  vRows = Math.ceil(S.filtered.length / vCols);
+  grid.style.height = (vRows * (vRowH + g) + g) + 'px';
   return true;
 }
+function positionThumb(el, i) {
+  const g = S.gap, row = Math.floor(i / vCols), col = i % vCols;
+  el.style.transform = `translate(${(g + col * (vColW + g)).toFixed(2)}px, ${(g + row * (vRowH + g)).toFixed(2)}px)`;
+  el.style.width = vColW + 'px'; el.style.height = vRowH + 'px';
+}
+function relayout() {
+  if (!calcLayout()) return;
+  for (const [i, el] of live) positionThumb(el, i);
+  syncVisible();
+}
+function renderGrid(resetScroll) {
+  for (const el of live.values()) el.remove(); live.clear();
+  if (resetScroll) gridWrap.scrollTop = 0;
+  updateCounter();
+  $('empty').classList.toggle('show', S.filtered.length === 0 && S.items.length > 0);
+  if (!S.filtered.length && S.items.length) $('empty').textContent = S.query ? `Geen resultaten voor “${S.query}”` : 'Geen items';
+  if (!calcLayout()) return;
+  syncVisible();
+}
+function makeThumb(m, i) {
+  const div = document.createElement('div');
+  div.className = 'thumb' + (i === S.idx ? ' active' : '');
+  div.dataset.idx = i;
+  positionThumb(div, i);
+  if (m.local && m.video) {
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.src = m.blob;
+    v.onloadeddata = () => div.classList.add('ready'); v.onerror = () => div.classList.add('ready', 'broken');
+    div.appendChild(v);
+  } else {
+    const img = document.createElement('img'); img.alt = ''; img.decoding = 'async'; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+    img.onload = () => div.classList.add('ready');
+    img.onerror = () => thumbFailed(m, img, div);
+    img.src = thumbUrl(m);
+    div.appendChild(img);
+  }
+  if (m.video) { const b = document.createElement('span'); b.className = 'badge play'; b.textContent = '▶'; div.appendChild(b); }
+  if (S.newSince && m.date > S.newSince) { const b = document.createElement('span'); b.className = 'badge new'; b.textContent = 'NIEUW'; div.appendChild(b); }
+  const fn = document.createElement('div'); fn.className = 'fname'; fn.textContent = m.fn; div.appendChild(fn);
+  return div;
+}
+function syncVisible() {
+  if (!vCols) return;
+  const g = S.gap, top = gridWrap.scrollTop, h = gridWrap.clientHeight;
+  const over = 2;
+  const r0 = Math.max(0, Math.floor(top / (vRowH + g)) - over);
+  const r1 = Math.min(vRows - 1, Math.ceil((top + h) / (vRowH + g)) + over);
+  const i0 = r0 * vCols, i1 = Math.min(S.filtered.length - 1, (r1 + 1) * vCols - 1);
+  for (const [i, el] of live) if (i < i0 || i > i1) { el.remove(); live.delete(i); }
+  const frag = document.createDocumentFragment();
+  for (let i = i0; i <= i1; i++) {
+    if (live.has(i)) continue;
+    const el = makeThumb(S.filtered[i], i); frag.appendChild(el); live.set(i, el);
+  }
+  if (frag.childNodes.length) grid.appendChild(frag);
+}
+gridWrap.addEventListener('scroll', () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; syncVisible(); }); }, { passive: true });
+window.addEventListener('resize', relayout, { passive: true });
+grid.addEventListener('click', e => { const t = e.target.closest('.thumb'); if (t) openLightbox(+t.dataset.idx); });
 
-function showGrid() {
-  welcome.style.display = 'none';
-  topbar.style.display = 'flex';
-  gridWrap.style.display = 'block';
-  applyFilterSort();
+// Thumbnail-fallback: gesigneerde lh3-links verlopen na een paar uur. Eerst nieuwe link via API, anders cookie-variant.
+const thumbQueue = []; let thumbBusy = 0;
+function thumbFailed(m, img, div) {
+  if (m.local || (m._r || 0) >= 2) { div.classList.add('ready', 'broken'); return; }
+  m._r = (m._r || 0) + 1;
+  if (m._r === 1 && S.source === 'drive' && Auth.valid()) {
+    thumbQueue.push(async () => {
+      try {
+        const f = await api(`files/${m.id}`, { fields: 'thumbnailLink' });
+        if (f.thumbnailLink) { m.tb = stripThumb(f.thumbnailLink); img.src = thumbUrl(m); Cache.dirty(); return; }
+      } catch (e) { }
+      img.src = `https://drive.google.com/thumbnail?id=${m.id}&sz=w${THUMB_S}`;
+    });
+    pumpThumbs();
+  } else img.src = `https://drive.google.com/thumbnail?id=${m.id}&sz=w${THUMB_S}`;
+}
+async function pumpThumbs() {
+  while (thumbBusy < 4 && thumbQueue.length) { thumbBusy++; const job = thumbQueue.shift(); job().finally(() => { thumbBusy--; pumpThumbs(); }); }
 }
 
-function applyFilterSort(resetScroll = true) {
-  const q = filterInput.value.toLowerCase();
-  const s = sortSelect.value;
-  const type = typeFilter.value;
-  const from = dateFrom.value ? new Date(dateFrom.value + 'T00:00:00').getTime() : null;
-  const to = dateTo.value ? new Date(dateTo.value + 'T23:59:59.999').getTime() : null;
-  filtered = allMedia.filter(m => {
-    if (q && !m.name.toLowerCase().includes(q)) return false;
-    if (type === 'image' && m.video) return false;
-    if (type === 'video' && !m.video) return false;
-    if (from !== null && m.date < from) return false;
-    if (to !== null && m.date > to) return false;
+/* ---------------- Filter / sort ---------------- */
+const filterInput = $('filterInput');
+function resort() {
+  const s = S.sort, arr = S.items.slice();
+  if (s === 'date-new') arr.sort((a, b) => b.date - a.date || collator.compare(a.name, b.name));
+  else if (s === 'date-old') arr.sort((a, b) => a.date - b.date || collator.compare(a.name, b.name));
+  else if (s === 'name-asc') arr.sort((a, b) => collator.compare(a.name, b.name));
+  else arr.sort((a, b) => collator.compare(b.name, a.name));
+  S.sorted = arr;
+}
+function refilter(resetScroll = true) {
+  const q = S.query.toLowerCase().trim(), k = S.kind;
+  const terms = q ? q.split(/\s+/) : [];
+  const keepId = S.idx >= 0 ? S.filtered[S.idx]?.id : null;
+  S.filtered = S.sorted.filter(m => {
+    if (k === 'img' && m.video) return false; if (k === 'vid' && !m.video) return false;
+    for (const t of terms) if (!m.lname.includes(t)) return false;
     return true;
   });
-  filtered.sort((a, b) => {
-    if (s === 'name-asc') return a.name.localeCompare(b.name);
-    if (s === 'name-desc') return b.name.localeCompare(a.name);
-    if (s === 'date-old') return a.date - b.date;
-    return b.date - a.date;
-  });
+  if (keepId) S.idx = S.filtered.findIndex(m => m.id === keepId);
   renderGrid(resetScroll);
 }
-
-function renderGrid(resetScroll = true) {
-  for (const [, el] of liveNodes) el.remove();
-  liveNodes.clear();
-  counter.textContent = filtered.length + ' items';
-  if (resetScroll) gridWrap.scrollTop = 0;
-  if (!calcGridLayout()) return;
-  syncVisibleNodes();
+function rebuild(resetScroll = false) { resort(); refilter(resetScroll); }
+function updateCounter() {
+  const n = S.filtered.length, tot = S.items.length;
+  $('welcomeSub').textContent = '';
+  if (S.source === 'local') setStatus('ok', `${fmtNum(n)}${n !== tot ? ' / ' + fmtNum(tot) : ''} items · lokaal`);
+  else if (S.source === 'drive') { const st = Drive.state; setStatus(statusEl.className || 'ok', `${fmtNum(n)}${n !== tot ? ' / ' + fmtNum(tot) : ''} items${st?.ts ? ' · sync ' + fmtAgo(st.ts) : ''}`); }
+}
+let filterTimer = 0;
+filterInput.addEventListener('input', () => {
+  $('filterClear').classList.toggle('show', !!filterInput.value);
+  clearTimeout(filterTimer); filterTimer = setTimeout(() => { S.query = filterInput.value; refilter(true); }, 90);
+});
+$('filterClear').addEventListener('click', () => { filterInput.value = ''; S.query = ''; $('filterClear').classList.remove('show'); refilter(true); filterInput.focus(); });
+function setFilter(q) { filterInput.value = q; S.query = q; $('filterClear').classList.toggle('show', !!q); refilter(true); }
+for (const sel of [$('sortSelect'), $('sortSelectSheet')]) {
+  sel.value = S.sort;
+  sel.addEventListener('change', () => { S.sort = sel.value; localStorage.setItem('dv_sort', S.sort); $('sortSelect').value = S.sort; $('sortSelectSheet').value = S.sort; rebuild(true); });
+}
+for (const wrap of [$('kindChips'), $('kindChipsSheet')]) wrap.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; S.kind = b.dataset.kind;
+  document.querySelectorAll('.chips button').forEach(x => x.classList.toggle('on', x.dataset.kind === S.kind));
+  refilter(true);
+});
+for (const sl of [$('sizeSlider'), $('sizeSliderSheet')]) {
+  sl.value = S.thumb;
+  sl.addEventListener('input', () => { S.thumb = +sl.value; localStorage.setItem('dv_thumb', S.thumb); relayout(); });
 }
 
-function syncVisibleNodes() {
-  if (!vCols) return;
-  const scrollTop = gridWrap.scrollTop;
-  const viewportH = gridWrap.clientHeight;
+/* ---------------- Sheet (mobiel) ---------------- */
+const openSheet = () => { $('sheet').classList.add('open'); $('sheetBg').classList.add('open'); };
+const closeSheet = () => { $('sheet').classList.remove('open'); $('sheetBg').classList.remove('open'); };
+$('btnMenu').addEventListener('click', openSheet); $('sheetBg').addEventListener('click', closeSheet);
 
-  // Which rows are visible (with overscan of 3 rows)
-  let startRow = Math.floor(scrollTop / (vRowH + gap));
-  let endRow = Math.ceil((scrollTop + viewportH) / (vRowH + gap));
-  startRow = Math.max(0, startRow - 3);
-  endRow = Math.min(vTotalRows - 1, endRow + 3);
-
-  const startIdx = startRow * vCols;
-  const endIdx = Math.min(filtered.length - 1, (endRow + 1) * vCols - 1);
-
-  // Remove nodes outside visible range
-  for (const [idx, el] of liveNodes) {
-    if (idx < startIdx || idx > endIdx) {
-      el.remove();
-      liveNodes.delete(idx);
-    }
-  }
-
-  // Add nodes that are now visible
-  for (let i = startIdx; i <= endIdx; i++) {
-    if (liveNodes.has(i)) continue;
-    const m = filtered[i];
-    const row = Math.floor(i / vCols);
-    const col = i % vCols;
-    const x = gap + col * (vColW + gap);
-    const y = gap + row * (vRowH + gap);
-
-    const div = document.createElement('div');
-    div.className = 'thumb';
-    if (i === currentIdx) div.className += ' active';
-    div.dataset.idx = i;
-    div.style.cssText = `left:${x}px;top:${y}px;width:${vColW}px;height:${vRowH}px;`;
-
-    if (m.video) {
-      const vid = document.createElement('video');
-      vid.muted = true;
-      vid.preload = 'none';
-      vid.src = m.thumbUrl;
-      vid.onloadeddata = () => vid.classList.add('loaded');
-      div.appendChild(vid);
-      const badge = document.createElement('div');
-      badge.className = 'badge badge-vid';
-      badge.textContent = 'VID';
-      div.appendChild(badge);
-    } else {
-      const img = document.createElement('img');
-      img.src = m.thumbUrl;
-      img.alt = '';
-      img.onload = () => img.classList.add('loaded');
-      div.appendChild(img);
-    }
-    const fname = document.createElement('div');
-    fname.className = 'fname';
-    fname.textContent = m.name.split('/').pop();
-    div.appendChild(fname);
-
-    div.onclick = () => openLightbox(i);
-    grid.appendChild(div);
-    liveNodes.set(i, div);
-  }
+/* ---------------- Bron: lokale map / drag&drop ---------------- */
+function showGrid() {
+  welcome.style.display = 'none'; topbar.classList.add('show'); gridWrap.classList.add('show');
+  rebuild(true);
 }
-
-function onGridScroll() {
-  if (rafId) return;
-  rafId = requestAnimationFrame(() => {
-    rafId = 0;
-    syncVisibleNodes();
+function loadLocalFiles(files) {
+  const list = files.filter(f => isMediaName(f.name) && !isExcluded(f.webkitRelativePath || f.name));
+  if (!list.length) { toast('Geen media gevonden in deze map', 'bad'); return; }
+  for (const m of S.items) if (m.local) URL.revokeObjectURL(m.blob);
+  S.source = 'local'; S.newSince = 0;
+  S.items = list.map((f, i) => {
+    const name = (f.webkitRelativePath || f.name).replace(/^[^/]+\//, '');
+    return { id: 'l' + i, fn: f.name, name, lname: name.toLowerCase(), date: f.lastModified || Date.now(), video: isVideoName(f.name), blob: URL.createObjectURL(f), size: f.size, local: true, file: f };
   });
+  closeSheet(); showGrid(); hideBanner();
 }
-
-gridWrap.addEventListener('scroll', onGridScroll, { passive: true });
-window.addEventListener('resize', () => {
-  if (filtered.length && calcGridLayout()) {
-    // Reposition all live nodes
-    for (const [i, el] of liveNodes) {
-      const row = Math.floor(i / vCols);
-      const col = i % vCols;
-      el.style.left = (gap + col * (vColW + gap)) + 'px';
-      el.style.top = (gap + row * (vRowH + gap)) + 'px';
-      el.style.width = vColW + 'px';
-      el.style.height = vRowH + 'px';
+for (const id of ['folderPicker', 'folderPickerSmall', 'folderPickerSheet']) {
+  const inp = $(id);
+  if (IS_IOS) { inp.removeAttribute('webkitdirectory'); inp.setAttribute('accept', 'image/*,video/*'); }
+  inp.addEventListener('change', e => { loadLocalFiles(Array.from(e.target.files)); e.target.value = ''; });
+}
+if (IS_IOS) { $('folderPickerLabel').firstChild.textContent = '🖼 Kies foto\'s / video\'s'; if (!IS_STANDALONE) $('pwaHint').style.display = 'block'; }
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  const entries = Array.from(e.dataTransfer.items || []).map(it => it.webkitGetAsEntry?.()).filter(Boolean);
+  if (entries.some(en => en.isDirectory)) {
+    const out = [];
+    async function walk(entry, prefix) {
+      if (entry.isFile) { const f = await new Promise(r => entry.file(r)); Object.defineProperty(f, 'webkitRelativePath', { value: prefix + f.name }); out.push(f); }
+      else if (entry.isDirectory) {
+        const reader = entry.createReader(); let batch;
+        do { batch = await new Promise(r => reader.readEntries(r)); for (const en of batch) await walk(en, prefix + entry.name + '/'); } while (batch.length);
+      }
     }
-    syncVisibleNodes();
-  }
-}, { passive: true });
+    for (const en of entries) await walk(en, '');
+    loadLocalFiles(out);
+  } else loadLocalFiles(Array.from(e.dataTransfer.files));
+});
 
-let filterTimer;
-filterInput.addEventListener('input', () => { clearTimeout(filterTimer); filterTimer = setTimeout(applyFilterSort, 120); });
-sortSelect.addEventListener('change', () => applyFilterSort());
-typeFilter.addEventListener('change', () => applyFilterSort());
-dateFrom.addEventListener('change', () => applyFilterSort());
-dateTo.addEventListener('change', () => applyFilterSort());
+/* ---------------- Lightbox ---------------- */
+const lightbox = $('lightbox'), stage = $('lb-stage');
+let lbEl = null, scale = 1, panX = 0, panY = 0, curLoad = null;
+const blobCache = new Map(); // id -> objectURL (LRU, max 4)
 
-// ── Lightbox ──
-let lbEl = null; // current media element in lightbox
-
-function openLightbox(idx) {
-  currentIdx = idx;
-  showLightboxMedia();
-  lightbox.classList.add('open');
-  highlightThumb();
-}
-
-let lastVideoBlobUrl = null;
-
+function openLightbox(i) { if (i < 0 || i >= S.filtered.length) return; S.idx = i; lightbox.classList.add('open'); showMedia(); highlight(); }
 function closeLightbox() {
-  lightbox.classList.remove('open');
-  // pause video if playing
-  if (lbEl && lbEl.tagName === 'VIDEO') lbEl.pause();
-  stopSlideshow();
-  if (document.fullscreenElement) document.exitFullscreen?.();
-  currentIdx = -1;
-  resetZoom();
+  lightbox.classList.remove('open', 'hideui');
+  if (curLoad) { curLoad.abort(); curLoad = null; }
+  if (lbEl) { if (lbEl.tagName === 'VIDEO') { try { lbEl.pause(); } catch { } lbEl.removeAttribute('src'); lbEl.load(); } lbEl.remove(); lbEl = null; }
+  S.idx = -1; highlight(); resetZoom();
 }
-
-function showLightboxMedia() {
-  const m = filtered[currentIdx];
-  if (!m) return;
-  rotation = 0;
-  const isVid = m.video;
-  ['lb-zoom-out', 'lb-fit', 'lb-actual', 'lb-zoom-in'].forEach(id => $(id).style.display = isVid ? 'none' : 'flex');
-
-  // Remove old media element
-  if (lbEl) lbEl.remove();
-  if (lastVideoBlobUrl) { URL.revokeObjectURL(lastVideoBlobUrl); lastVideoBlobUrl = null; }
+function highlight() {
+  for (const [i, el] of live) el.classList.toggle('active', i === S.idx);
+}
+function scrollThumbIntoView() {
+  if (!vCols || S.idx < 0) return;
+  const g = S.gap, top = g + Math.floor(S.idx / vCols) * (vRowH + g);
+  if (top < gridWrap.scrollTop) gridWrap.scrollTop = top - g;
+  else if (top + vRowH + g > gridWrap.scrollTop + gridWrap.clientHeight) gridWrap.scrollTop = top + vRowH + g * 2 - gridWrap.clientHeight;
+  syncVisible(); highlight();
+}
+function setProgress(p) { const el = $('lb-progress'); el.classList.toggle('show', p != null); if (p != null) el.firstElementChild.style.width = Math.round(p * 100) + '%'; }
+function metaHtml(m, extra) {
+  const folder = m.name.includes('/') ? m.name.slice(0, m.name.lastIndexOf('/')) : '';
+  const parts = [`${S.idx + 1} / ${fmtNum(S.filtered.length)}`];
+  if (folder) parts.push(`<span class="folder" data-folder="${folder.replace(/"/g, '&quot;')}">${folder}</span>`);
+  parts.push(fmtDate(m.date)); if (m.size) parts.push(fmtBytes(m.size)); if (extra) parts.push(extra);
+  return parts.join('<span class="sep">·</span>');
+}
+async function showMedia() {
+  const m = S.filtered[S.idx]; if (!m) return;
+  if (curLoad) { curLoad.abort(); curLoad = null; }
+  if (lbEl) { if (lbEl.tagName === 'VIDEO') { try { lbEl.pause(); } catch { } } lbEl.remove(); lbEl = null; }
+  resetZoom(); setProgress(null);
+  $('lb-name').textContent = m.fn; $('lb-meta').innerHTML = metaHtml(m);
 
   if (m.video) {
-    lbEl = document.createElement('video');
-    const videoEl = lbEl;
-    videoEl.id = 'lb-media';
-    videoEl.controls = true;
-    videoEl.loop = true;
-    videoEl.style.maxWidth = '95vw';
-    videoEl.style.maxHeight = 'calc(95vh - 40px)';
-    videoEl.style.outline = 'none';
-    videoEl.addEventListener('loadedmetadata', () => {
-      naturalW = videoEl.videoWidth; naturalH = videoEl.videoHeight;
-      lbDim.textContent = `${naturalW}×${naturalH}`;
-    });
-    if (m.driveId) {
-      // A <video src> can't send an Authorization header, and Drive's uc?export=download
-      // link isn't a real streamable source (no auth, no range support, confirm-page for
-      // larger files) — so fetch it authenticated and play it back as a blob instead.
-      lbDim.textContent = 'Loading…';
-      fetch(`https://www.googleapis.com/drive/v3/files/${m.driveId}?alt=media`, {
-        headers: { Authorization: `Bearer ${driveToken}` }
-      }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
-        .then(blob => {
-          if (!document.contains(videoEl)) return;
-          lastVideoBlobUrl = URL.createObjectURL(blob);
-          videoEl.src = lastVideoBlobUrl;
-          videoEl.autoplay = true;
-          videoEl.play().catch(() => {});
-        })
-        .catch(err => {
-          if (document.contains(videoEl)) lbDim.textContent = 'Video load failed';
-          console.error('Drive video load failed', err);
-        });
-    } else {
-      videoEl.src = m.url;
-      videoEl.autoplay = true;
-      videoEl.play().catch(() => {});
+    const v = document.createElement('video'); v.controls = true; v.autoplay = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+    lbEl = v; stage.appendChild(v);
+    v.addEventListener('loadedmetadata', () => { if (lbEl === v) $('lb-meta').innerHTML = metaHtml(m, `${v.videoWidth}×${v.videoHeight}`); });
+    if (m.local) { v.src = m.blob; return; }
+    try {
+      const url = await fetchBlob(m, p => setProgress(p));
+      if (lbEl !== v) return;
+      setProgress(null); v.src = url;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      setProgress(null); $('lb-meta').innerHTML = metaHtml(m, `<span style="color:var(--bad)">video laden mislukt — ${describeError(e)}</span>`);
     }
   } else {
-    lbEl = document.createElement('img');
-    lbEl.id = 'lb-media';
-    lbEl.draggable = false;
-    lbEl.style.maxWidth = '95vw';
-    lbEl.style.maxHeight = 'calc(95vh - 40px)';
-    lbEl.style.objectFit = 'contain';
-    lbEl.style.userSelect = 'none';
-    lbEl.style.willChange = 'transform';
-    lbEl.style.transition = 'transform .06s ease';
-    lbEl.style.transformOrigin = '0 0';
-    lbEl.src = m.url;
-    lbEl.onload = () => {
-      naturalW = lbEl.naturalWidth; naturalH = lbEl.naturalHeight;
-      lbDim.textContent = `${naturalW}×${naturalH}`;
-      resetZoom();
+    const img = document.createElement('img'); img.draggable = false; img.alt = m.fn; img.referrerPolicy = 'no-referrer';
+    lbEl = img; stage.appendChild(img);
+    img.onload = () => { if (lbEl === img) $('lb-meta').innerHTML = metaHtml(m, `${img.naturalWidth}×${img.naturalHeight}`); };
+    img.onerror = async () => {
+      if (m.local || img.dataset.fallback) return;
+      img.dataset.fallback = '1';
+      try { img.src = await fetchBlob(m, p => setProgress(p)); setProgress(null); } catch (e) { setProgress(null); }
     };
-    // Double-click zoom
-    lbEl.addEventListener('dblclick', e => {
-      e.preventDefault();
-      toggleActualFit();
-    });
-    // Pan
-    lbEl.addEventListener('mousedown', e => {
-      if (isFitted) return;
-      isDragging = true; dragSX = e.clientX; dragSY = e.clientY; panSX = panX; panSY = panY;
-      lbEl.style.cursor = 'grabbing'; e.preventDefault();
-    });
-  }
-
-  lightbox.insertBefore(lbEl, $('lb-close'));
-  resetZoom();
-
-  lbCounter.textContent = `${currentIdx + 1} / ${filtered.length}`;
-  lbName.textContent = m.name.split('/').pop();
-  lbDim.textContent = '';
-
-  // Preload ±2 neighbors (images only)
-  for (const off of [-1, 1, 2, -2]) {
-    const ni = currentIdx + off;
-    if (ni >= 0 && ni < filtered.length && !filtered[ni].video && !preloaded.has(ni)) {
-      const img = new Image(); img.src = filtered[ni].url; preloaded.set(ni, img);
-    }
-  }
-  for (const [k] of preloaded) { if (Math.abs(k - currentIdx) > 4) preloaded.delete(k); }
-}
-
-function navigate(dir) {
-  const next = currentIdx + dir;
-  if (next < 0 || next >= filtered.length) return;
-  if (lbEl && lbEl.tagName === 'VIDEO') lbEl.pause();
-  currentIdx = next;
-  resetZoom();
-  showLightboxMedia();
-  highlightThumb();
-  scrollThumbIntoView();
-}
-
-function highlightThumb() {
-  document.querySelectorAll('.thumb.active').forEach(t => t.classList.remove('active'));
-  const el = document.querySelector(`.thumb[data-idx="${currentIdx}"]`);
-  if (el) el.classList.add('active');
-}
-
-function scrollThumbIntoView() {
-  if (!vCols) return;
-  const row = Math.floor(currentIdx / vCols);
-  const top = gap + row * (vRowH + gap);
-  
-  if (top < gridWrap.scrollTop) {
-    gridWrap.scrollTop = top - gap;
-  } else if (top + vRowH + gap > gridWrap.scrollTop + gridWrap.clientHeight) {
-    gridWrap.scrollTop = top + vRowH + gap * 2 - gridWrap.clientHeight;
-  }
-  syncVisibleNodes();
-  highlightThumb();
-}
-
-function resetZoom() { scale = 1; panX = 0; panY = 0; isFitted = true; applyTransform(); }
-
-function applyTransform() {
-  if (!lbEl) return;
-  if (lbEl.tagName === 'VIDEO') {
-    const swapped = rotation === 90 || rotation === 270;
-    lbEl.style.maxWidth = swapped ? 'calc(95vh - 40px)' : '95vw';
-    lbEl.style.maxHeight = swapped ? '95vw' : 'calc(95vh - 40px)';
-    lbEl.style.transformOrigin = 'center center';
-    lbEl.style.transform = rotation ? `rotate(${rotation}deg)` : '';
-    return;
-  }
-  if (rotation === 0) {
-    if (isFitted) {
-      lbEl.style.transform = ''; lbEl.style.maxWidth = '95vw'; lbEl.style.maxHeight = 'calc(95vh - 40px)';
-      lbEl.style.position = ''; lbEl.style.left = ''; lbEl.style.top = '';
-      lbEl.style.width = ''; lbEl.style.height = '';
-    } else {
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const ar = naturalW / naturalH;
-      let fw, fh;
-      if (vw / vh > ar) { fh = vh * 0.95; fw = fh * ar; } else { fw = vw * 0.95; fh = fw / ar; }
-      lbEl.style.maxWidth = 'none'; lbEl.style.maxHeight = 'none';
-      lbEl.style.width = fw + 'px'; lbEl.style.height = fh + 'px';
-      lbEl.style.position = 'absolute';
-      lbEl.style.left = (vw / 2 - fw / 2 + panX) + 'px';
-      lbEl.style.top = (vh / 2 - fh / 2 + panY) + 'px';
-      lbEl.style.transformOrigin = '0 0';
-      lbEl.style.transform = `scale(${scale})`;
-    }
-    return;
-  }
-  // Rotated 90/180/270: center-pivot layout, bounding box swapped for 90/270
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const ar = naturalW / naturalH;
-  const swapped = rotation === 90 || rotation === 270;
-  const boundW = swapped ? vh : vw, boundH = swapped ? vw : vh;
-  let fw, fh;
-  if (boundW / boundH > ar) { fh = boundH * 0.95; fw = fh * ar; } else { fw = boundW * 0.95; fh = fw / ar; }
-  lbEl.style.maxWidth = 'none'; lbEl.style.maxHeight = 'none';
-  lbEl.style.width = fw + 'px'; lbEl.style.height = fh + 'px';
-  lbEl.style.position = 'absolute';
-  lbEl.style.left = (vw / 2 + panX) + 'px';
-  lbEl.style.top = (vh / 2 + panY) + 'px';
-  lbEl.style.transformOrigin = 'center center';
-  lbEl.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`;
-}
-
-function rotateBy(deg) { rotation = ((rotation + deg) % 360 + 360) % 360; applyTransform(); }
-
-function zoomToActual() {
-  if (!lbEl || lbEl.tagName === 'VIDEO' || !naturalW) return;
-  isFitted = false;
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const ar = naturalW / naturalH;
-  const swapped = rotation === 90 || rotation === 270;
-  const boundW = swapped ? vh : vw, boundH = swapped ? vw : vh;
-  let fw, fh;
-  if (boundW / boundH > ar) { fh = boundH * 0.95; fw = fh * ar; } else { fw = boundW * 0.95; fh = fw / ar; }
-  scale = naturalW / fw;
-  panX = 0; panY = 0;
-  applyTransform();
-}
-
-function toggleActualFit() { if (isFitted) zoomToActual(); else resetZoom(); }
-
-let slideshowTimer = null;
-const SLIDESHOW_MS = 4000;
-
-function slideshowTick() {
-  if (!filtered.length) return;
-  if (lbEl && lbEl.tagName === 'VIDEO') lbEl.pause();
-  currentIdx = (currentIdx + 1) % filtered.length;
-  resetZoom();
-  showLightboxMedia();
-  highlightThumb();
-  scrollThumbIntoView();
-}
-
-function toggleSlideshow() {
-  const btn = $('lb-slideshow');
-  if (slideshowTimer) {
-    clearInterval(slideshowTimer); slideshowTimer = null;
-    btn.innerHTML = '&#9654;'; btn.classList.remove('active');
-  } else {
-    slideshowTimer = setInterval(slideshowTick, SLIDESHOW_MS);
-    btn.innerHTML = '&#10074;&#10074;'; btn.classList.add('active');
+    img.src = fullUrl(m);
+    // Voorladen van buren
+    for (const off of [1, -1, 2]) { const n = S.filtered[S.idx + off]; if (n && !n.video && !n.local) { const pi = new Image(); pi.referrerPolicy = 'no-referrer'; pi.src = fullUrl(n); } }
   }
 }
-
-function stopSlideshow() {
-  if (!slideshowTimer) return;
-  clearInterval(slideshowTimer); slideshowTimer = null;
-  $('lb-slideshow').innerHTML = '&#9654;'; $('lb-slideshow').classList.remove('active');
+// Volledige download via API (voor video's en als de gesigneerde link verlopen is)
+async function fetchBlob(m, onProgress) {
+  if (blobCache.has(m.id)) { const u = blobCache.get(m.id); blobCache.delete(m.id); blobCache.set(m.id, u); return u; }
+  if (m.size && m.size > 600 * 1024 * 1024) throw new Error('bestand is te groot voor streaming in de browser; open in Drive');
+  const ctrl = new AbortController(); curLoad = ctrl;
+  const tok = await Auth.ensure();
+  const r = await fetch(`${API}files/${m.id}?alt=media`, { headers: { Authorization: 'Bearer ' + tok }, signal: ctrl.signal });
+  if (!r.ok) throw Object.assign(new Error('HTTP ' + r.status), { status: r.status });
+  const total = +r.headers.get('Content-Length') || m.size || 0;
+  const reader = r.body.getReader(); const chunks = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
+  const url = URL.createObjectURL(new Blob(chunks, { type: r.headers.get('Content-Type') || (m.video ? 'video/mp4' : 'image/png') }));
+  blobCache.set(m.id, url);
+  while (blobCache.size > 4) { const [k, u] = blobCache.entries().next().value; URL.revokeObjectURL(u); blobCache.delete(k); }
+  if (curLoad === ctrl) curLoad = null;
+  return url;
 }
-
-function toggleFullscreen() {
-  if (!document.fullscreenElement) lightbox.requestFullscreen?.();
-  else document.exitFullscreen?.();
+function navigate(d) {
+  const n = S.idx + d; if (n < 0 || n >= S.filtered.length) return;
+  S.idx = n; showMedia(); scrollThumbIntoView();
 }
-
-document.addEventListener('fullscreenchange', () => {
-  $('lb-fullscreen').classList.toggle('active', !!document.fullscreenElement);
-});
-
-$('lb-rotate-l').addEventListener('click', () => rotateBy(-90));
-$('lb-rotate-r').addEventListener('click', () => rotateBy(90));
-$('lb-fit').addEventListener('click', () => resetZoom());
-$('lb-actual').addEventListener('click', zoomToActual);
-$('lb-zoom-in').addEventListener('click', () => { scale *= 1.25; isFitted = false; applyTransform(); });
-$('lb-zoom-out').addEventListener('click', () => { scale *= 0.8; isFitted = false; applyTransform(); });
-$('lb-slideshow').addEventListener('click', toggleSlideshow);
-$('lb-fullscreen').addEventListener('click', toggleFullscreen);
-
-// Scroll zoom
-lightbox.addEventListener('wheel', e => {
-  if (currentIdx < 0 || !lbEl || lbEl.tagName === 'VIDEO') return;
-  e.preventDefault();
-  const d = e.deltaY > 0 ? 0.88 : 1.14;
-  const ns = Math.max(0.1, Math.min(30, scale * d));
-  if (isFitted) isFitted = false;
-  const rect = lbEl.getBoundingClientRect();
-  panX -= (e.clientX - rect.left) * (ns / scale - 1);
-  panY -= (e.clientY - rect.top) * (ns / scale - 1);
-  scale = ns; applyTransform();
-}, { passive: false });
-
-// Pan move/up
-window.addEventListener('mousemove', e => {
-  if (!isDragging) return;
-  panX = panSX + (e.clientX - dragSX); panY = panSY + (e.clientY - dragSY); applyTransform();
-});
-window.addEventListener('mouseup', () => { isDragging = false; if (lbEl) lbEl.style.cursor = ''; });
-
-// Nav/close
 $('lb-prev').addEventListener('click', e => { e.stopPropagation(); navigate(-1); });
 $('lb-next').addEventListener('click', e => { e.stopPropagation(); navigate(1); });
 $('lb-close').addEventListener('click', closeLightbox);
-lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
+$('lb-open').addEventListener('click', () => { const m = S.filtered[S.idx]; if (!m) return; window.open(m.local ? m.blob : `https://drive.google.com/file/d/${m.id}/view`, '_blank', 'noopener'); });
+$('lb-dl').addEventListener('click', async () => {
+  const m = S.filtered[S.idx]; if (!m) return;
+  try { const url = m.local ? m.blob : await fetchBlob(m, p => setProgress(p)); setProgress(null); const a = document.createElement('a'); a.href = url; a.download = m.fn; a.click(); }
+  catch (e) { setProgress(null); toast('Download mislukt: ' + describeError(e), 'bad'); }
+});
+$('lb-meta').addEventListener('click', e => { const f = e.target.closest('.folder'); if (f) { closeLightbox(); setFilter(f.dataset.folder + '/'); } });
 
-// ── Keyboard ──
+// Zoom & pan (muis + touch)
+function applyTransform() {
+  if (!lbEl || lbEl.tagName !== 'IMG') return;
+  lbEl.style.transform = scale === 1 && !panX && !panY ? '' : `translate(${panX}px, ${panY}px) scale(${scale})`;
+  stage.classList.toggle('zoomed', scale > 1);
+  const z = $('lb-zoom'); z.classList.toggle('show', scale !== 1); z.textContent = Math.round(scale * 100) + '%';
+}
+function resetZoom() { scale = 1; panX = 0; panY = 0; stage.classList.remove('dragging'); applyTransform(); }
+function zoomAt(ns, cx, cy) {
+  ns = Math.max(1, Math.min(12, ns));
+  if (ns === 1) { resetZoom(); return; }
+  const vx = innerWidth / 2, vy = innerHeight / 2, k = ns / scale;
+  panX = cx - vx - (cx - vx - panX) * k; panY = cy - vy - (cy - vy - panY) * k; scale = ns; applyTransform();
+}
+stage.addEventListener('wheel', e => {
+  if (!lbEl || lbEl.tagName !== 'IMG') return; e.preventDefault();
+  zoomAt(scale * (e.deltaY > 0 ? 0.85 : 1.18), e.clientX, e.clientY);
+}, { passive: false });
+stage.addEventListener('dblclick', e => { if (!lbEl || lbEl.tagName !== 'IMG') return; e.preventDefault(); scale > 1 ? resetZoom() : zoomAt(2.5, e.clientX, e.clientY); });
+let drag = null;
+stage.addEventListener('mousedown', e => { if (e.button !== 0 || !lbEl || lbEl.tagName !== 'IMG' || scale === 1) return; drag = { x: e.clientX, y: e.clientY, px: panX, py: panY, moved: false }; stage.classList.add('dragging'); e.preventDefault(); });
+window.addEventListener('mousemove', e => { if (!drag) return; panX = drag.px + e.clientX - drag.x; panY = drag.py + e.clientY - drag.y; drag.moved = true; applyTransform(); });
+window.addEventListener('mouseup', () => { if (drag) { stage.classList.remove('dragging'); const d = drag; drag = null; if (d.moved) stage.dataset.skipClick = '1'; } });
+stage.addEventListener('click', e => {
+  if (stage.dataset.skipClick) { delete stage.dataset.skipClick; return; }
+  if (e.target === stage) { if (IS_TOUCH) lightbox.classList.toggle('hideui'); else closeLightbox(); }
+  else if (IS_TOUCH && lbEl && lbEl.tagName === 'IMG') lightbox.classList.toggle('hideui');
+});
+// Touch: 1 vinger swipe (niet gezoomd) / pan (gezoomd), 2 vingers pinch, dubbel-tik zoom
+let tm = null, t0 = null, pinch0 = 0, scale0 = 1, pc = null, lastTap = 0, hadPinch = false;
+const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+lightbox.addEventListener('touchstart', e => {
+  if (!lbEl) return;
+  if (e.touches.length >= 2) { tm = 'pinch'; hadPinch = true; pinch0 = dist(e.touches[0], e.touches[1]); scale0 = scale; pc = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }; return; }
+  const t = e.touches[0]; t0 = { x: t.clientX, y: t.clientY, px: panX, py: panY, time: Date.now(), moved: false }; tm = scale > 1 ? 'pan' : 'swipe';
+}, { passive: true });
+lightbox.addEventListener('touchmove', e => {
+  if (!lbEl || lbEl.tagName !== 'IMG') return;
+  if (tm === 'pinch' && e.touches.length >= 2) {
+    e.preventDefault();
+    const d = dist(e.touches[0], e.touches[1]);
+    const nc = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+    zoomAt(Math.max(1, scale0 * d / pinch0), nc.x, nc.y); panX += nc.x - pc.x; panY += nc.y - pc.y; pc = nc; applyTransform();
+  } else if (tm === 'pan' && t0) {
+    e.preventDefault(); const t = e.touches[0]; panX = t0.px + t.clientX - t0.x; panY = t0.py + t.clientY - t0.y; t0.moved = true; applyTransform();
+  } else if (tm === 'swipe' && t0) { const t = e.touches[0]; if (Math.abs(t.clientX - t0.x) > 8 || Math.abs(t.clientY - t0.y) > 8) t0.moved = true; if (Math.abs(t.clientX - t0.x) > 20 && e.cancelable) e.preventDefault(); }
+}, { passive: false });
+lightbox.addEventListener('touchend', e => {
+  if (!lbEl) return;
+  if (e.touches.length > 0) return;
+  if (tm === 'pinch') { if (scale < 1.08) resetZoom(); tm = null; return; }
+  if (hadPinch) { hadPinch = false; tm = null; return; }
+  const t = e.changedTouches[0];
+  if (tm === 'swipe' && t0 && lbEl.tagName === 'IMG') {
+    const dx = t.clientX - t0.x, dy = t.clientY - t0.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) { navigate(dx > 0 ? -1 : 1); tm = null; return; }
+    if (dy > 90 && Math.abs(dx) < 60) { closeLightbox(); tm = null; return; }
+    if (!t0.moved) { const now = Date.now(); if (now - lastTap < 300) { zoomAt(2.5, t.clientX, t.clientY); lastTap = 0; } else lastTap = now; }
+  }
+  tm = null;
+}, { passive: true });
+
+/* ---------------- Keyboard ---------------- */
 document.addEventListener('keydown', e => {
-  if (document.activeElement === filterInput && e.key !== 'Escape') return;
-  if ($('driveModal').classList.contains('open')) { if (e.key === 'Escape') $('driveModal').classList.remove('open'); return; }
-
+  if (document.activeElement === filterInput) { if (e.key === 'Escape') { filterInput.blur(); if (filterInput.value) { $('filterClear').click(); } } else if (e.key === 'Enter' && S.filtered.length) { filterInput.blur(); } return; }
+  if ($('driveModal').classList.contains('open')) { if (e.key === 'Escape') $('driveModal').classList.remove('open'); if (e.key === 'Enter') $('driveConnect').click(); return; }
   if (lightbox.classList.contains('open')) {
     switch (e.key) {
       case 'Escape': closeLightbox(); break;
-      case 'ArrowLeft': navigate(-1); break;
-      case 'ArrowRight': navigate(1); break;
-      case 'ArrowUp': e.preventDefault(); navigate(-1); break;
-      case 'ArrowDown': e.preventDefault(); navigate(1); break;
-      case '+': case '=': scale *= 1.25; isFitted = false; applyTransform(); break;
-      case '-': scale *= 0.8; isFitted = false; applyTransform(); break;
-      case '0': case 'f': case 'F': resetZoom(); applyTransform(); break;
-      case '1': toggleActualFit(); break;
-      case 'r': rotateBy(90); break;
-      case 'R': rotateBy(-90); break;
-      case 's': case 'S': toggleSlideshow(); break;
-      case 'Enter': toggleFullscreen(); break;
-      case ' ':
-        e.preventDefault();
-        if (lbEl && lbEl.tagName === 'VIDEO') { lbEl.paused ? lbEl.play() : lbEl.pause(); }
-        break;
-      case 'Home': e.preventDefault(); currentIdx = 0; resetZoom(); showLightboxMedia(); highlightThumb(); break;
-      case 'End': e.preventDefault(); currentIdx = filtered.length - 1; resetZoom(); showLightboxMedia(); highlightThumb(); break;
+      case 'ArrowLeft': case 'ArrowUp': case 'k': e.preventDefault(); navigate(-1); break;
+      case 'ArrowRight': case 'ArrowDown': case 'j': e.preventDefault(); navigate(1); break;
+      case '+': case '=': zoomAt(scale * 1.25, innerWidth / 2, innerHeight / 2); break;
+      case '-': zoomAt(scale / 1.25, innerWidth / 2, innerHeight / 2); break;
+      case '0': case 'f': case 'F': resetZoom(); break;
+      case ' ': e.preventDefault(); if (lbEl?.tagName === 'VIDEO') lbEl.paused ? lbEl.play() : lbEl.pause(); break;
+      case 'Home': e.preventDefault(); S.idx = 0; showMedia(); scrollThumbIntoView(); break;
+      case 'End': e.preventDefault(); S.idx = S.filtered.length - 1; showMedia(); scrollThumbIntoView(); break;
+      case 'o': $('lb-open').click(); break;
+      case 'd': $('lb-dl').click(); break;
     }
-  } else {
-    if (e.key === '/' || (e.key === 'f' && !e.ctrlKey && !e.metaKey)) { e.preventDefault(); filterInput.focus(); }
+    return;
   }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === '/' || e.key === 'f') { e.preventDefault(); filterInput.focus(); filterInput.select(); }
+  else if (e.key === 's' && S.source === 'drive') Drive.sync('manual');
+  else if (e.key === 'Enter' && S.filtered.length) openLightbox(Math.max(0, S.idx));
 });
 
-// ── Touch swipe ──
-let tSX = 0;
-lightbox.addEventListener('touchstart', e => { if (e.touches.length === 1) tSX = e.touches[0].clientX; }, { passive: true });
-lightbox.addEventListener('touchend', e => {
-  if (scale > 1) return;
-  const dx = e.changedTouches[0].clientX - tSX;
-  if (Math.abs(dx) > 50) navigate(dx > 0 ? -1 : 1);
-}, { passive: true });
+/* =====================================================================
+   Google Drive
+   ===================================================================== */
+const redirectUri = () => location.origin + location.pathname;
+function b64url(bytes) { let bin = ''; for (const b of new Uint8Array(bytes)) bin += String.fromCharCode(b); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
-// ── Drag & drop ──
-document.addEventListener('dragover', e => e.preventDefault());
-document.addEventListener('drop', e => {
-  e.preventDefault();
-  const entries = [];
-  for (const item of (e.dataTransfer.items || [])) {
-    const entry = item.webkitGetAsEntry?.();
-    if (entry) entries.push(entry);
-  }
-  if (entries.length && entries[0].isDirectory) readDirEntry(entries[0]);
-  else {
-    const files = Array.from(e.dataTransfer.files).filter(f => isMedia(f.name) && !isExcluded(f.name));
-    if (files.length) {
-      allMedia = files.map(f => ({ name: f.name, url: URL.createObjectURL(f), thumbUrl: URL.createObjectURL(f), date: f.lastModified || Date.now(), video: isVideo(f.name) }));
-      showGrid();
-    }
-  }
-});
+const Auth = {
+  clientId: localStorage.getItem('dv_clientId') || '',
+  secret: localStorage.getItem('dv_clientSecret') || '',
+  refreshToken: localStorage.getItem('dv_refresh_token') || null,
+  token: localStorage.getItem('dv_token') || null,
+  exp: +(localStorage.getItem('dv_token_exp') || 0),
+  timer: 0, pending: null,
+  valid(margin = 60e3) { return !!this.token && this.exp > Date.now() + margin; },
+  save(tok, expiresIn) {
+    this.token = tok; this.exp = Date.now() + (parseInt(expiresIn || '3600') - 30) * 1000;
+    localStorage.setItem('dv_token', tok); localStorage.setItem('dv_token_exp', String(this.exp));
+    hideBanner(); this.schedule();
+  },
+  invalidate() { this.token = null; this.exp = 0; localStorage.removeItem('dv_token'); localStorage.removeItem('dv_token_exp'); },
+  forget() {
+    this.invalidate(); clearTimeout(this.timer);
+    if (this.refreshToken) fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(this.refreshToken), { method: 'POST' }).catch(() => { });
+    this.refreshToken = null; localStorage.removeItem('dv_refresh_token');
+  },
+  /** Geldig token, zo nodig stil vernieuwd via de refresh_token. Gooit {type:'login'} als er ingelogd moet worden. */
+  async ensure() { return this.valid() ? this.token : this.acquire(true); },
+  acquire(silent) {
+    if (this.pending) return this.pending;
+    if (!this.clientId) return Promise.reject(new Error('Geen Client ID'));
+    this.pending = (async () => {
+      if (this.refreshToken) {
+        try {
+          const d = await this.tokenRequest({ client_id: this.clientId, refresh_token: this.refreshToken, grant_type: 'refresh_token' });
+          this.save(d.access_token, d.expires_in); return d.access_token;
+        } catch (e) {
+          if (!/invalid_grant|invalid_client|unauthorized_client/i.test(e.message)) throw e; // netwerk e.d.: refresh_token blijft bruikbaar
+          this.refreshToken = null; localStorage.removeItem('dv_refresh_token');
+        }
+      }
+      if (silent) throw Object.assign(new Error('Inloggen nodig'), { type: 'login' });
+      await this.login(); return new Promise(() => { }); // pagina navigeert weg
+    })().finally(() => { this.pending = null; });
+    return this.pending;
+  },
+  async tokenRequest(fields) {
+    if (this.secret) fields.client_secret = this.secret;
+    const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error_description ? `${d.error}: ${d.error_description}` : (d.error || 'token request failed'));
+    return d;
+  },
+  /** Full-page redirect naar Google (authorization code + PKCE, offline → refresh_token). */
+  async login() {
+    const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+    const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+    sessionStorage.setItem('dv_pkce_verifier', verifier); sessionStorage.setItem('dv_oauth_state', state);
+    const p = new URLSearchParams({ client_id: this.clientId, redirect_uri: redirectUri(), response_type: 'code', scope: SCOPE, access_type: 'offline', prompt: 'consent', code_challenge: challenge, code_challenge_method: 'S256', state, include_granted_scopes: 'true' });
+    location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + p;
+  },
+  /** Bij terugkomst van Google: code inwisselen. Geeft true als er een redirect verwerkt is. */
+  async handleRedirect() {
+    const q = new URLSearchParams(location.search);
+    const code = q.get('code'), state = q.get('state'), err = q.get('error');
+    if (!code && !err) return false;
+    history.replaceState({}, '', redirectUri());
+    const expected = sessionStorage.getItem('dv_oauth_state'); sessionStorage.removeItem('dv_oauth_state');
+    if (err) { toast('Google-login mislukt: ' + err, 'bad', 6000); return true; }
+    if (!expected || state !== expected) { toast('Google-login mislukt: state mismatch', 'bad', 6000); return true; }
+    try {
+      const d = await this.tokenRequest({ client_id: this.clientId, code, code_verifier: sessionStorage.getItem('dv_pkce_verifier') || '', grant_type: 'authorization_code', redirect_uri: redirectUri() });
+      sessionStorage.removeItem('dv_pkce_verifier');
+      if (d.refresh_token) { this.refreshToken = d.refresh_token; localStorage.setItem('dv_refresh_token', d.refresh_token); }
+      this.save(d.access_token, d.expires_in);
+      toast('Verbonden met Google Drive', 'ok');
+    } catch (e) { toast('Google-login mislukt: ' + e.message, 'bad', 8000); }
+    return true;
+  },
+  schedule() {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.refresh(), Math.max(10e3, this.exp - Date.now() - 5 * 60e3));
+  },
+  async refresh() {
+    try { await this.acquire(true); }
+    catch (e) { if (e.type === 'login') showBanner('Sessie verlopen — log opnieuw in bij Google.', 'Inloggen', () => Drive.connect({ interactive: true })); }
+  },
+};
 
-async function readDirEntry(root) {
-  const files = [];
-  async function walk(entry, prefix) {
-    if (entry.isFile) {
-      const f = await new Promise(r => entry.file(r));
-      if (isMedia(f.name) && !isExcluded(f.name)) files.push({ name: prefix + f.name, url: URL.createObjectURL(f), thumbUrl: URL.createObjectURL(f), date: f.lastModified || Date.now(), video: isVideo(f.name) });
-    } else if (entry.isDirectory) {
-      const reader = entry.createReader();
-      const entries = await new Promise(r => reader.readEntries(r));
-      for (const e of entries) await walk(e, prefix + entry.name + '/');
-    }
-  }
-  const reader = root.createReader();
-  const entries = await new Promise(r => reader.readEntries(r));
-  for (const e of entries) await walk(e, '');
-  if (files.length) { allMedia = files; showGrid(); }
+class ApiError extends Error { constructor(status, body) { super(`HTTP ${status}`); this.status = status; this.body = body; } }
+async function api(path, params = {}, attempt = 0) {
+  const url = API + path + '?' + new URLSearchParams(params);
+  const tok = await Auth.ensure();
+  let r;
+  try { r = await fetch(url, { headers: { Authorization: 'Bearer ' + tok } }); }
+  catch (e) { if (attempt < 3) { await sleep(600 * 2 ** attempt); return api(path, params, attempt + 1); } throw e; }
+  if (r.ok) return r.json();
+  const body = await r.text().catch(() => '');
+  if (r.status === 401 && attempt < 2) { Auth.invalidate(); await Auth.acquire(true); return api(path, params, attempt + 1); }
+  if ((r.status === 429 || r.status >= 500 || (r.status === 403 && /rateLimit|userRateLimit|quota/i.test(body))) && attempt < 5) { await sleep(500 * 2 ** attempt + Math.random() * 300); return api(path, params, attempt + 1); }
+  throw new ApiError(r.status, body);
 }
+const stripThumb = l => l ? l.replace(/=s\d+(-c)?$/, '') : null;
 
-// ── Google Drive ──
-let gapiOk = false, driveToken = null, refreshTimer = null;
-function loadScript(src) { return new Promise((r, j) => { const s = document.createElement('script'); s.src = src; s.onload = r; s.onerror = j; document.head.appendChild(s); }); }
-
-// ── OAuth: authorization-code + PKCE, so we get a refresh_token that never
-// expires (GIS's implicit-flow tokens can only be silently renewed via a
-// hidden accounts.google.com iframe, which most browsers now block via
-// third-party-cookie restrictions — hence the recurring "reconnect" pain). ──
-function redirectUri() { return window.location.origin + window.location.pathname; }
-function b64url(bytes) {
-  let bin = ''; for (const b of new Uint8Array(bytes)) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-async function pkcePair() {
-  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
-  return { verifier, challenge };
-}
-async function startDriveAuth(clientId) {
-  const { verifier, challenge } = await pkcePair();
-  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
-  sessionStorage.setItem('dv_pkce_verifier', verifier);
-  sessionStorage.setItem('dv_oauth_state', state);
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri(),
-    response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/drive.readonly',
-    access_type: 'offline',
-    prompt: 'consent',
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    state
-  });
-  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
-}
-async function tokenRequest(body) {
-  const r = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body
-  });
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error_description || data.error || 'token request failed');
-  return data;
-}
-async function exchangeCodeForTokens(code, clientId, clientSecret) {
-  const verifier = sessionStorage.getItem('dv_pkce_verifier') || '';
-  const body = new URLSearchParams({
-    client_id: clientId, code, code_verifier: verifier,
-    grant_type: 'authorization_code', redirect_uri: redirectUri()
-  });
-  if (clientSecret) body.set('client_secret', clientSecret);
-  return tokenRequest(body);
-}
-async function refreshAccessToken() {
-  const clientId = localStorage.getItem('dv_clientId');
-  const clientSecret = localStorage.getItem('dv_clientSecret') || '';
-  const refreshTokenVal = localStorage.getItem('dv_refresh_token');
-  if (!clientId || !refreshTokenVal) throw new Error('not connected');
-  const body = new URLSearchParams({ client_id: clientId, refresh_token: refreshTokenVal, grant_type: 'refresh_token' });
-  if (clientSecret) body.set('client_secret', clientSecret);
-  const data = await tokenRequest(body);
-  saveToken(data.access_token, data.expires_in);
-  driveToken = data.access_token;
-  gapi.client.setToken({ access_token: data.access_token });
-  scheduleTokenRefresh(data.expires_in);
-  return data.access_token;
-}
-function scheduleTokenRefresh(expiresIn) {
-  clearTimeout(refreshTimer);
-  const ms = Math.max(30000, (parseInt(expiresIn || '3600') - 300) * 1000);
-  refreshTimer = setTimeout(() => refreshAccessToken().catch(err => console.error('token refresh failed', err)), ms);
-}
-async function handleOAuthRedirect() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code'), state = params.get('state'), err = params.get('error');
-  if (!code && !err) return false;
-  history.replaceState({}, '', redirectUri());
-  if (err) { alert('Google Drive authorization failed: ' + err); return true; }
-  const expectedState = sessionStorage.getItem('dv_oauth_state');
-  sessionStorage.removeItem('dv_oauth_state');
-  if (!expectedState || state !== expectedState) { alert('Google Drive authorization failed: state mismatch'); return true; }
-  const clientId = localStorage.getItem('dv_clientId');
-  const clientSecret = localStorage.getItem('dv_clientSecret') || '';
-  try {
-    const data = await exchangeCodeForTokens(code, clientId, clientSecret);
-    saveToken(data.access_token, data.expires_in);
-    if (data.refresh_token) localStorage.setItem('dv_refresh_token', data.refresh_token);
-    driveToken = data.access_token;
-    scheduleTokenRefresh(data.expires_in);
-    await initDrive(clientId, localStorage.getItem('dv_folder') || 'ComfyUI-Results');
-  } catch (e) {
-    alert('Google Drive authorization failed: ' + e.message);
-  }
-  return true;
-}
-
-// ── Token caching (tokens live ~1h) ──
-function getCachedToken() {
-  const token = localStorage.getItem('dv_token');
-  const exp = parseInt(localStorage.getItem('dv_token_exp') || '0');
-  return (token && exp > Date.now() + 60000) ? token : null;
-}
-function saveToken(token, expiresIn) {
-  localStorage.setItem('dv_token', token);
-  localStorage.setItem('dv_token_exp', String(Date.now() + (parseInt(expiresIn || '3600') - 60) * 1000));
-}
-function clearToken() {
-  localStorage.removeItem('dv_token');
-  localStorage.removeItem('dv_token_exp');
-}
-
-// ── Listing cache (localStorage) — instant scroll bij herverbinding ──
-const DV_CACHE_KEY = 'dv_scan_cache';
-const DV_CACHE_MAX = 20000;
-function saveDriveCache(folderName, items) {
-  try {
-    const minimal = items.slice(0, DV_CACHE_MAX).map(m => [m.driveId, m.name, m.date, m.video ? 1 : 0, m.thumbBase || '']);
-    localStorage.setItem(DV_CACHE_KEY, JSON.stringify({ folder: folderName, ts: Date.now(), items: minimal }));
-  } catch (e) {}
-}
-function loadDriveCache(folderName) {
-  try {
-    const raw = localStorage.getItem(DV_CACHE_KEY);
-    if (!raw) return null;
-    const { items: minimal, folder } = JSON.parse(raw);
-    if (folder !== folderName || !minimal?.length) return null;
-    return minimal.map(([id, name, date, vid, base]) => {
-      const thumbUrl = base ? base + '=s400' : `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
-      const url      = vid ? null : (base ? base + '=s2048' : `https://drive.google.com/thumbnail?id=${id}&sz=w2048`);
-      return { driveId: id, name, date, video: !!vid, thumbBase: base || null, thumbUrl, url };
+/* ---- IndexedDB cache: één record per Drive-map met alle items + changes-token ---- */
+const Cache = {
+  db: null, saveTimer: 0,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const rq = indexedDB.open('drive-viewer', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('kv');
+      rq.onsuccess = () => { this.db = rq.result; res(this.db); }; rq.onerror = () => rej(rq.error);
     });
-  } catch (e) { return null; }
-}
+  },
+  async get(key) { const db = await this.open(); return new Promise((res, rej) => { const r = db.transaction('kv').objectStore('kv').get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async put(key, val) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(val, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); },
+  async del(key) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); },
+  dirty() { clearTimeout(this.saveTimer); this.saveTimer = setTimeout(() => Drive.persist(), 1500); },
+};
 
-$('btnDrive').addEventListener('click', () => $('driveModal').classList.add('open'));
-$('btnDriveSmall').addEventListener('click', () => $('driveModal').classList.add('open'));
-$('driveCancel').addEventListener('click', () => $('driveModal').classList.remove('open'));
-$('btnReload').addEventListener('click', async () => {
-  const cid = localStorage.getItem('dv_clientId');
-  const folder = localStorage.getItem('dv_folder') || 'ComfyUI-Results';
-  if (!cid) { $('driveModal').classList.add('open'); return; }
-  if (!getCachedToken()) {
-    try { await refreshAccessToken(); } catch (e) { $('driveModal').classList.add('open'); return; }
-  }
-  initDrive(cid, folder);
+const Drive = {
+  folder: localStorage.getItem('dv_folder') || 'ComfyUI-Results',
+  state: null,     // { rootId, folders: {id:name}, pageToken, ts, items: Map(id -> item) }
+  scanning: false, syncing: false, pollTimer: 0,
+
+  key() { return 'state:' + this.folder; },
+
+  buildItem(f) {
+    if (!isMediaName(f.name)) return null;
+    const p = f.parents?.[0] || '';
+    const isOurs = p === this.state.rootId || this.state.folders[p] !== undefined;
+    if (!isOurs) return null;
+    const sf = this.state.folders[p] || '';
+    const name = sf ? sf + '/' + f.name : f.name;
+    if (isExcluded(name)) return null;
+    return { id: f.id, fn: f.name, name, lname: name.toLowerCase(), date: new Date(f.modifiedTime || f.createdTime || 0).getTime(), video: (f.mimeType || '').startsWith('video/') || isVideoName(f.name), tb: stripThumb(f.thumbnailLink), p, size: +f.size || 0 };
+  },
+  /** Herbereken padnamen (na hernoemen van een submap). */
+  rename(folderId) {
+    for (const m of this.state.items.values()) if (m.p === folderId) { const sf = this.state.folders[folderId] || ''; m.name = sf ? sf + '/' + m.fn : m.fn; m.lname = m.name.toLowerCase(); }
+  },
+  publish(resetScroll = false) {
+    S.source = 'drive'; S.items = Array.from(this.state.items.values());
+    if (!gridWrap.classList.contains('show')) showGrid(); else rebuild(resetScroll);
+  },
+  async persist() {
+    if (!this.state) return;
+    const st = this.state;
+    const items = []; for (const m of st.items.values()) items.push([m.id, m.fn, m.date, m.video ? 1 : 0, m.tb || '', m.p, m.size || 0]);
+    try { await Cache.put(this.key(), { rootId: st.rootId, folders: st.folders, pageToken: st.pageToken, ts: st.ts, items }); } catch (e) { console.warn('cache save', e); }
+  },
+  async restore() {
+    try {
+      const raw = await Cache.get(this.key());
+      if (raw?.items?.length) {
+        const st = { rootId: raw.rootId, folders: raw.folders || {}, pageToken: raw.pageToken, ts: raw.ts, items: new Map() };
+        for (const [id, fn, date, vid, tb, p, size] of raw.items) { const sf = st.folders[p] || ''; const name = sf ? sf + '/' + fn : fn; st.items.set(id, { id, fn, name, lname: name.toLowerCase(), date, video: !!vid, tb: tb || null, p, size }); }
+        this.state = st; return true;
+      }
+      // Eenmalige migratie van de oude localStorage-cache (alleen om direct iets te tonen; wordt gevolgd door een volledige scan).
+      const old = localStorage.getItem('dv_scan_cache');
+      if (old) {
+        const { folder, items } = JSON.parse(old);
+        if (folder === this.folder && items?.length) {
+          const st = { rootId: null, folders: {}, pageToken: null, ts: 0, items: new Map() };
+          for (const [id, name, date, vid, base] of items) { const fn = name.split('/').pop(); st.items.set(id, { id, fn, name, lname: name.toLowerCase(), date, video: !!vid, tb: base || null, p: '', size: 0 }); }
+          this.state = st; localStorage.removeItem('dv_scan_cache'); return 'legacy';
+        }
+        localStorage.removeItem('dv_scan_cache');
+      }
+    } catch (e) { console.warn('cache restore', e); }
+    return false;
+  },
+
+  /** Startpunt: cache tonen, dan (incrementeel) syncen of volledig scannen. */
+  async connect({ interactive = false } = {}) {
+    if (!Auth.clientId) { openDriveModal(); return; }
+    $('loading').classList.add('active');
+    welcome.style.display = 'none'; topbar.classList.add('show'); gridWrap.classList.add('show');
+    const restored = this.state ? true : await this.restore();
+    if (restored) { this.publish(true); setStatus('busy', `${fmtNum(S.items.length)} items · synchroniseren…`); }
+    else setStatus('busy', 'Verbinden…');
+    try {
+      if (!Auth.valid()) await Auth.acquire(!interactive); else Auth.schedule();
+      if (restored === true && this.state.pageToken) await this.sync('startup');
+      else await this.fullScan();
+      this.startPolling();
+    } catch (e) {
+      console.error(e);
+      if (e.type === 'login') {
+        setStatus('warn', `${fmtNum(S.items.length)} items · niet ingelogd`);
+        showBanner('Inloggen bij Google is nodig om te synchroniseren.', 'Inloggen', () => { hideBanner(); Drive.connect({ interactive: true }); });
+      } else { setStatus('bad', 'Fout: ' + describeError(e)); toast('Drive-fout: ' + describeError(e), 'bad', 6000); }
+    } finally { $('loading').classList.remove('active'); }
+  },
+
+  async findRoot() {
+    const r = await api('files', { q: `name='${this.folder.replace(/'/g, "\\'")}' and mimeType='${FOLDER_MIME}' and trashed=false`, fields: 'files(id,name)', pageSize: 5, spaces: 'drive' });
+    if (!r.files?.length) throw new Error(`Map “${this.folder}” niet gevonden in Drive`);
+    return r.files[0].id;
+  },
+
+  /** Volledige scan. Submap-pagina's worden direct in bundels van 50 parents gescand (8 parallel). */
+  async fullScan() {
+    if (this.scanning) return; this.scanning = true;
+    const t0 = performance.now();
+    try {
+      setStatus('busy', 'Scannen…');
+      const { startPageToken } = await api('changes/startPageToken', {});
+      const rootId = await this.findRoot();
+      const st = { rootId, folders: {}, pageToken: startPageToken, ts: 0, items: new Map() };
+      const prev = this.state; this.state = st;
+      let shown = !!prev && S.items.length > 0, renderTimer = 0, count = 0, done = 0, total = 0;
+      const render = () => { if (renderTimer) return; renderTimer = setTimeout(() => { renderTimer = 0; this.publish(!shown); shown = true; setStatus('busy', `${fmtNum(st.items.size)} items · scannen ${done}/${total}…`); }, 350); };
+      const PAR = 8, CHUNK = 50; let active = 0; const waiting = [];
+      const run = async job => { while (active >= PAR) await new Promise(r => waiting.push(r)); active++; try { await job(); } finally { active--; done++; waiting.shift()?.(); } };
+      const jobs = [];
+      const scanParents = async ids => {
+        const q = `(${ids.map(id => `'${id}' in parents`).join(' or ')}) and mimeType != '${FOLDER_MIME}' and trashed=false`;
+        let pt;
+        do {
+          const r = await api('files', { q, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,thumbnailLink,parents,size)', pageSize: 1000, pageToken: pt || '' });
+          for (const f of r.files) { const m = this.buildItem(f); if (m) { st.items.set(m.id, m); count++; } }
+          pt = r.nextPageToken; if (r.files.length) render();
+        } while (pt);
+      };
+      total++; jobs.push(run(() => scanParents([rootId])));
+      let sfPt;
+      do {
+        const r = await api('files', { q: `'${rootId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`, fields: 'nextPageToken,files(id,name)', pageSize: 1000, pageToken: sfPt || '', orderBy: 'modifiedTime desc' });
+        const batch = [];
+        for (const f of r.files) { if (/^tmp$/i.test(f.name)) continue; st.folders[f.id] = f.name; batch.push(f.id); }
+        for (let i = 0; i < batch.length; i += CHUNK) { const ids = batch.slice(i, i + CHUNK); total++; jobs.push(run(() => scanParents(ids))); }
+        sfPt = r.nextPageToken;
+      } while (sfPt);
+      await Promise.all(jobs);
+      clearTimeout(renderTimer);
+      st.ts = Date.now(); this.publish(!shown);
+      await this.persist();
+      setStatus('ok', `${fmtNum(st.items.size)} items · sync zojuist`);
+      toast(`${fmtNum(st.items.size)} items gescand in ${((performance.now() - t0) / 1000).toFixed(1)} s`, 'ok');
+    } finally { this.scanning = false; }
+  },
+
+  /** Incrementeel: alleen wat er sinds de laatste keer veranderde. Meestal 1 request. */
+  async sync(why) {
+    if (this.syncing || this.scanning || !this.state?.pageToken) return;
+    this.syncing = true;
+    const st = this.state; let changed = 0, added = 0; const notOurs = new Set(); const before = st.ts;
+    try {
+      if (why === 'manual') setStatus('busy', 'Synchroniseren…');
+      let pt = st.pageToken;
+      do {
+        let r;
+        try {
+          r = await api('changes', { pageToken: pt, pageSize: 1000, restrictToMyDrive: 'true', includeRemoved: 'true', spaces: 'drive', fields: 'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,modifiedTime,thumbnailLink,parents,size,trashed))' });
+        } catch (e) {
+          if (e.status === 400 || e.status === 404 || e.status === 410) { toast('Sync-token verlopen, volledige scan…'); this.syncing = false; await this.fullScan(); return; }
+          throw e;
+        }
+        // 1) mappen eerst, zodat bestanden in nieuwe mappen herkend worden
+        for (const c of r.changes) {
+          const f = c.file; if (!f || f.mimeType !== FOLDER_MIME) continue;
+          const underRoot = f.parents?.includes(st.rootId);
+          if ((c.removed || f.trashed || !underRoot) && st.folders[f.id] !== undefined) {
+            delete st.folders[f.id]; for (const m of Array.from(st.items.values())) if (m.p === f.id) { st.items.delete(m.id); changed++; }
+          } else if (underRoot && !f.trashed && !/^tmp$/i.test(f.name)) {
+            if (st.folders[f.id] !== f.name) { st.folders[f.id] = f.name; this.rename(f.id); changed++; }
+          }
+        }
+        // 2) bestanden
+        for (const c of r.changes) {
+          const f = c.file;
+          if (c.removed || !f || f.trashed) { if (st.items.delete(c.fileId)) changed++; continue; }
+          if (f.mimeType === FOLDER_MIME) continue;
+          const p = f.parents?.[0];
+          if (p && p !== st.rootId && st.folders[p] === undefined && !notOurs.has(p) && isMediaName(f.name)) {
+            // Onbekende ouder: mogelijk een nieuwe submap die vóór ons token al bestond. Eén files.get.
+            try { const pf = await api(`files/${p}`, { fields: 'id,name,parents,trashed,mimeType' }); if (!pf.trashed && pf.mimeType === FOLDER_MIME && pf.parents?.includes(st.rootId) && !/^tmp$/i.test(pf.name)) st.folders[p] = pf.name; else notOurs.add(p); }
+            catch { notOurs.add(p); }
+          }
+          const m = this.buildItem(f);
+          if (m) { if (!st.items.has(m.id)) added++; st.items.set(m.id, m); changed++; }
+          else if (st.items.delete(f.id)) changed++;
+        }
+        if (r.newStartPageToken) st.pageToken = r.newStartPageToken;
+        pt = r.nextPageToken;
+      } while (pt);
+      st.ts = Date.now();
+      if (changed) { S.newSince = before || 0; this.publish(false); }
+      else updateCounter();
+      await this.persist();
+      setStatus('ok', `${fmtNum(st.items.size)} items · sync zojuist`);
+      if (why === 'manual') toast(changed ? `${added} nieuw · ${changed - added} gewijzigd/verwijderd` : 'Alles is al up-to-date', 'ok');
+      else if (added) toast(`${added} nieuwe ${added === 1 ? 'bestand' : 'bestanden'}`, 'ok');
+    } catch (e) {
+      console.error(e);
+      if (e.type === 'login') { setStatus('warn', `${fmtNum(st.items.size)} items · sessie verlopen`); showBanner('Sessie verlopen — log opnieuw in bij Google.', 'Inloggen', () => Drive.connect({ interactive: true })); }
+      else { setStatus('warn', `${fmtNum(st.items.size)} items · sync mislukt`, describeError(e)); if (why === 'manual') toast('Sync mislukt: ' + describeError(e), 'bad'); }
+    } finally { this.syncing = false; }
+  },
+
+  startPolling() {
+    clearInterval(this.pollTimer);
+    this.pollTimer = setInterval(() => { if (document.visibilityState === 'visible' && Auth.valid()) this.sync('poll'); }, 60e3);
+  },
+  async forget() {
+    clearInterval(this.pollTimer); Auth.forget();
+    try { await Cache.del(this.key()); } catch { }
+    ['dv_clientId', 'dv_clientSecret', 'dv_folder', 'dv_hint', 'dv_apiKey', 'dv_scan_cache', 'dv_refresh_token'].forEach(k => localStorage.removeItem(k));
+    this.state = null; Auth.clientId = ''; Auth.secret = '';
+    setTimeout(() => location.reload(), 300);
+  },
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || S.source !== 'drive') return;
+  Drive.sync('visible'); // api() vernieuwt het token zelf als dat nodig is
 });
 
-if (localStorage.getItem('dv_clientId')) {
-  $('driveClientId').value = localStorage.getItem('dv_clientId');
-  $('driveClientSecret').value = localStorage.getItem('dv_clientSecret') || '';
-  $('driveApiKey').value = localStorage.getItem('dv_apiKey') || '';
-  $('driveFolderName').value = localStorage.getItem('dv_folder') || 'ComfyUI-Results';
+/* ---------------- Drive modal & knoppen ---------------- */
+function openDriveModal() {
+  $('driveClientId').value = Auth.clientId; $('driveClientSecret').value = Auth.secret; $('driveFolderName').value = Drive.folder;
+  $('originCode').textContent = location.protocol.startsWith('http') ? redirectUri() : '(alleen via http(s) — niet via file://)';
+  $('driveModal').classList.add('open'); closeSheet();
+  setTimeout(() => (Auth.clientId ? $('driveFolderName') : $('driveClientId')).focus(), 50);
 }
+for (const id of ['btnDrive', 'btnDriveSmall', 'btnDriveSheet']) $(id).addEventListener('click', openDriveModal);
+$('driveCancel').addEventListener('click', () => $('driveModal').classList.remove('open'));
+$('driveModal').addEventListener('click', e => { if (e.target === $('driveModal')) $('driveModal').classList.remove('open'); });
+$('driveForget').addEventListener('click', () => { if (confirm('Login, Client ID en de lokale cache wissen?')) Drive.forget(); });
+$('driveConnect').addEventListener('click', async () => {
+  const cid = $('driveClientId').value.trim(), secret = $('driveClientSecret').value.trim(), folder = $('driveFolderName').value.trim() || 'ComfyUI-Results';
+  if (!cid) { $('driveClientId').focus(); return; }
+  if (cid !== Auth.clientId) { Auth.forget(); }
+  if (folder !== Drive.folder) { Drive.state = null; }
+  Auth.clientId = cid; Auth.secret = secret; Drive.folder = folder;
+  localStorage.setItem('dv_clientId', cid); localStorage.setItem('dv_clientSecret', secret); localStorage.setItem('dv_folder', folder);
+  $('driveModal').classList.remove('open');
+  await Drive.connect({ interactive: true });
+});
+$('btnReconnect').addEventListener('click', () => Drive.connect({ interactive: true }));
+for (const id of ['btnSync', 'btnSyncSheet']) $(id).addEventListener('click', () => { closeSheet(); if (S.source !== 'drive') return Drive.connect({ interactive: true }); if (Drive.state?.pageToken) Drive.sync('manual'); else Drive.fullScan().catch(e => toast(describeError(e), 'bad')); });
 
-// On load: finish an in-progress OAuth redirect, else auto-connect from a
-// cached access token, else silently refresh from the stored refresh_token.
-(async function() {
-  if (await handleOAuthRedirect()) return;
-  const cid = localStorage.getItem('dv_clientId');
-  const folder = localStorage.getItem('dv_folder') || 'ComfyUI-Results';
-  if (!cid) return;
-  if (getCachedToken()) { initDrive(cid, folder); return; }
-  if (localStorage.getItem('dv_refresh_token')) {
-    try { await refreshAccessToken(); initDrive(cid, folder); } catch (e) {}
+/* ---------------- Boot ---------------- */
+(async function boot() {
+  await Auth.handleRedirect();
+  if (Auth.clientId) {
+    $('rcFolder').textContent = '· ' + Drive.folder; $('btnReconnect').style.display = 'inline-flex';
+    // Direct starten: de cache staat er binnen ~100 ms; met een geldig token synct hij stil door,
+    // anders wordt de stille verlenging geprobeerd en zo nodig een login-banner getoond.
+    Drive.connect({ interactive: false });
+  } else if (location.protocol === 'file:') {
+    $('welcomeSub').textContent = 'Google Drive werkt alleen via http(s); lokale mappen werken wel.';
   }
 })();
-
-$('driveConnect').addEventListener('click', async () => {
-  const cid = $('driveClientId').value.trim();
-  const folder = $('driveFolderName').value.trim() || 'ComfyUI-Results';
-  if (!cid) { $('driveClientId').focus(); return; }
-  localStorage.setItem('dv_clientId', cid);
-  localStorage.setItem('dv_clientSecret', $('driveClientSecret').value.trim());
-  localStorage.setItem('dv_apiKey', $('driveApiKey').value.trim());
-  localStorage.setItem('dv_folder', folder);
-  $('driveModal').classList.remove('open');
-  await startDriveAuth(cid);
-});
-
-async function initDrive(clientId, folderName) {
-  $('loading').classList.add('active');
-  welcome.style.display = 'none'; topbar.style.display = 'flex'; gridWrap.style.display = 'block';
-
-  // Restore from cache immediately so the grid is usable while scanning
-  const cached = loadDriveCache(folderName);
-  if (cached && cached.length) {
-    allMedia = cached;
-    applyFilterSort(true);
-    $('loading').classList.remove('active');
-    counter.textContent = `${cached.length} items (cache)`;
-  }
-
-  if (!gapiOk) { await loadScript('https://apis.google.com/js/api.js'); gapiOk = true; }
-
-  await new Promise(r => gapi.load('client', r));
-  await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
-
-  driveToken = getCachedToken();
-  if (driveToken) {
-    gapi.client.setToken({ access_token: driveToken });
-    const secsLeft = Math.floor((parseInt(localStorage.getItem('dv_token_exp') || '0') - Date.now()) / 1000);
-    scheduleTokenRefresh(secsLeft + 300);
-  } else {
-    try {
-      driveToken = await refreshAccessToken();
-    } catch (e) {
-      $('loading').classList.remove('active');
-      $('driveModal').classList.add('open');
-      return;
-    }
-  }
-
-  const fr = await gapi.client.drive.files.list({
-    q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: 'files(id)', pageSize: 5
-  });
-  if (!fr.result.files?.length) { alert(`"${folderName}" not found`); $('loading').classList.remove('active'); return; }
-
-  const rootId = fr.result.files[0].id;
-  const media = [];
-  let gridInitialized = !!(cached && cached.length); // grid al getoond vanuit cache?
-  counter.textContent = 'Scanning...';
-
-  let aborted = false, handling401 = false;
-  function handle401(e) {
-    if (e?.status !== 401) return false;
-    aborted = true;
-    if (!handling401) {
-      handling401 = true;
-      clearToken();
-      refreshAccessToken().then(() => {
-        counter.textContent = 'Sessie ververst — opnieuw laden...';
-        initDrive(clientId, folderName);
-      }).catch(() => {
-        counter.textContent = 'Sessie verlopen — klik ☁ Drive om opnieuw te verbinden.';
-      });
-    }
-    return true;
-  }
-
-  // Throttled progressive render zodat je direct kunt scrollen
-  let renderTimer = 0;
-  function progressiveRender() {
-    if (renderTimer) return;
-    renderTimer = setTimeout(() => {
-      renderTimer = 0;
-      allMedia = media.slice();
-      if (!gridInitialized) { gridInitialized = true; applyFilterSort(true); $('loading').classList.remove('active'); }
-      else { applyFilterSort(false); }
-      counter.textContent = `${media.length} items (scannen...)`;
-    }, 400);
-  }
-
-  // Step 1: directe subfolders ophalen (nieuwste eerst), id→naam map
-  const folderMap = {};
-  const subfolders = [];
-  let sfPt = null;
-  do {
-    let r;
-    try {
-      r = await gapi.client.drive.files.list({
-        q: `'${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-        fields: 'nextPageToken,files(id,name)', pageSize: 1000, pageToken: sfPt, orderBy: 'modifiedTime desc'
-      });
-    } catch (e) { if (handle401(e)) return; throw e; }
-    for (const f of r.result.files) {
-      if (/^tmp$/i.test(f.name)) continue;
-      folderMap[f.id] = f.name;
-      subfolders.push(f);
-    }
-    sfPt = r.result.nextPageToken;
-  } while (sfPt);
-
-  // Step 2: bundel 50 parent-IDs per query → 7900 calls wordt ~160 calls
-  const CHUNK = 50, PAR = 3;
-  async function scanChunk(folders) {
-    const parentQ = folders.map(sf => `'${sf.id}' in parents`).join(' or ');
-    let pt = null;
-    do {
-      let r;
-      try {
-        r = await gapi.client.drive.files.list({
-          q: `(${parentQ}) and mimeType != 'application/vnd.google-apps.folder' and trashed=false`,
-          fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,thumbnailLink,parents)',
-          pageSize: 1000, pageToken: pt
-        });
-      } catch (e) { if (handle401(e)) return; throw e; }
-      for (const f of r.result.files) {
-        if (!isMedia(f.name)) continue;
-        const sfName = folderMap[f.parents?.[0]] ?? '';
-        const name = sfName ? sfName + '/' + f.name : f.name;
-        if (isExcluded(name)) continue;
-        const v = (f.mimeType || '').startsWith('video/');
-        const baseThumb = f.thumbnailLink ? f.thumbnailLink.replace(/=s\d+(-c)?$/, '') : null;
-        const thumbUrl = baseThumb ? baseThumb + '=s400' : `https://drive.google.com/thumbnail?id=${f.id}&sz=w400`;
-        const url = v ? null : (baseThumb ? baseThumb + '=s2048' : `https://drive.google.com/thumbnail?id=${f.id}&sz=w2048`);
-        media.push({ name, driveId: f.id, video: v, url, thumbUrl, thumbBase: baseThumb, date: new Date(f.modifiedTime || 0).getTime() });
-      }
-      pt = r.result.nextPageToken;
-      if (aborted) return;
-    } while (pt);
-    progressiveRender();
-  }
-
-  const chunks = [];
-  for (let i = 0; i < subfolders.length; i += CHUNK) chunks.push(subfolders.slice(i, i + CHUNK));
-  for (let i = 0; i < chunks.length && !aborted; i += PAR) {
-    await Promise.all(chunks.slice(i, i + PAR).map(scanChunk));
-  }
-  if (aborted) return;
-
-  if (renderTimer) { clearTimeout(renderTimer); renderTimer = 0; }
-  allMedia = media;
-  applyFilterSort(false);
-  counter.textContent = media.length + ' items';
-  saveDriveCache(folderName, media);
-}
 </script>
 </body>
 </html>
