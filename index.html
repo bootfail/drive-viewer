@@ -178,7 +178,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
   position: absolute; top: 0; left: 0; right: 0; padding: calc(var(--safe-top) + 8px) 10px 10px; display: flex; align-items: center; gap: 10px;
   background: linear-gradient(rgba(0,0,0,.75), transparent); opacity: 1; transition: opacity .25s;
 }
-#lightbox.hideui #lb-top, #lightbox.hideui .lb-arrow { opacity: 0; pointer-events: none; }
+#lightbox.hideui #lb-top, #lightbox.hideui #lb-bottom, #lightbox.hideui .lb-arrow { opacity: 0; pointer-events: none; }
 #lb-top .btn { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.1); color: #fff; }
 #lb-top .btn:hover { background: rgba(255,255,255,.16); }
 #lb-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -198,6 +198,28 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
 #lb-progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .15s; }
 #lb-zoom { position: absolute; bottom: calc(var(--safe-bot) + 14px); left: 50%; transform: translateX(-50%); padding: 4px 10px; border-radius: 20px; background: rgba(0,0,0,.6); color: #fff; font-size: 11.5px; display: none; }
 #lb-zoom.show { display: block; }
+#lb-bottom {
+  display: none; position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  padding: 10px 12px calc(var(--safe-bot) + 10px); justify-content: space-around; align-items: center; gap: 8px;
+  background: linear-gradient(transparent, rgba(0,0,0,.75)); opacity: 1; transition: opacity .25s;
+}
+.lbb { width: 52px; height: 48px; border: 0; border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font-size: 24px; line-height: 1; display: grid; place-items: center; }
+.lbb:active { background: rgba(255,255,255,.22); }
+#menuFab {
+  display: none; position: fixed; right: 16px; bottom: calc(var(--safe-bot) + 16px); z-index: 140; width: 56px; height: 56px; border: 0; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font-size: 22px; box-shadow: 0 10px 28px -8px rgba(0,0,0,.8);
+}
+@media (pointer: coarse) {
+  #lb-bottom { display: flex; }
+  #lb-stage video { max-height: calc(100dvh - 96px); }
+  #lb-zoom { bottom: calc(var(--safe-bot) + 76px); }
+  #lb-progress { bottom: calc(var(--safe-bot) + 68px); }
+  .btn { height: 44px; }
+  .btn.icon { width: 44px; font-size: 18px; }
+  .chips button { height: 38px; padding: 0 14px; }
+  #menuFab.show { display: grid; place-items: center; }
+  #sheet .row .btn, #sheet select { height: 46px; }
+}
 
 /* ---------- Modal ---------- */
 .modal-bg { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.65); backdrop-filter: blur(6px); padding: 20px; }
@@ -258,6 +280,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
   <div id="filterWrap"><input type="text" id="filterInput" class="ctl" placeholder="Filter op naam of map… ( / )" autocomplete="off" autocapitalize="off"><button id="filterClear" aria-label="Wis filter">×</button></div>
   <div class="chips desk" id="kindChips"><button data-kind="all" class="on">Alles</button><button data-kind="img">Foto's</button><button data-kind="vid">Video's</button></div>
   <select id="sortSelect" class="ctl desk"><option value="date-new" selected>Nieuwste eerst</option><option value="date-old">Oudste eerst</option><option value="name-asc">Naam A–Z</option><option value="name-desc">Naam Z–A</option></select>
+  <select id="personSelect" class="ctl desk" style="display:none" title="Filter op persoon" aria-label="Filter op persoon"></select>
   <input type="range" id="sizeSlider" class="desk" min="90" max="420" value="200" title="Thumbnail-grootte">
   <span class="spacer"></span>
   <span id="status"><i class="dot"></i><span id="statusText"></span></span>
@@ -282,6 +305,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
   <div id="grid"></div>
   <div id="empty"></div>
 </div>
+<button id="menuFab" aria-label="Menu en filter">☰</button>
 <div id="loading"><div class="spinner"></div></div>
 
 <div id="lightbox">
@@ -294,6 +318,13 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
   </div>
   <button class="lb-arrow" id="lb-prev" aria-label="Vorige">‹</button>
   <button class="lb-arrow" id="lb-next" aria-label="Volgende">›</button>
+  <div id="lb-bottom">
+    <button id="lbb-close" class="lbb" aria-label="Sluiten">×</button>
+    <button id="lbb-prev" class="lbb" aria-label="Vorige">‹</button>
+    <button id="lbb-fit" class="lbb" aria-label="Passend">⤢</button>
+    <button id="lbb-next" class="lbb" aria-label="Volgende">›</button>
+    <button id="lbb-dl" class="lbb" aria-label="Download">⤓</button>
+  </div>
   <div id="lb-zoom"></div>
   <div id="lb-progress"><i></i></div>
 </div>
@@ -312,12 +343,16 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
 <div id="sheetBg"></div>
 <div id="sheet">
   <div class="grab"></div>
+  <h3>Filter</h3>
+  <div class="row"><button id="btnFilterSheet" class="btn">🔍 Filter op naam of map</button><button id="btnFilterClearSheet" class="btn">× Wis</button></div>
   <h3>Bron</h3>
   <div class="row"><button id="btnDriveSheet" class="btn">☁ Drive</button><button id="btnSyncSheet" class="btn">↻ Sync</button><label class="btn" for="folderPickerSheet">📁 Map<input type="file" id="folderPickerSheet" webkitdirectory multiple></label></div>
   <h3>Toon</h3>
   <div class="row chips" id="kindChipsSheet" style="display:flex"><button data-kind="all" class="on">Alles</button><button data-kind="img">Foto's</button><button data-kind="vid">Video's</button></div>
   <h3>Sortering</h3>
   <div class="row"><select id="sortSelectSheet" class="ctl"><option value="date-new">Nieuwste eerst</option><option value="date-old">Oudste eerst</option><option value="name-asc">Naam A–Z</option><option value="name-desc">Naam Z–A</option></select></div>
+  <div id="personBlockSheet" style="display:none"><h3>Personen</h3>
+  <div class="row"><select id="personSelectSheet" class="ctl" aria-label="Filter op persoon"></select></div></div>
   <h3>Thumbnail-grootte</h3>
   <input type="range" id="sizeSliderSheet" min="70" max="260" value="120">
 </div>
@@ -403,6 +438,9 @@ const S = {
   sort: localStorage.getItem('dv_sort') || 'date-new',
   kind: 'all',
   query: '',
+  personId: '',          // '' = alle personen | '__unknown' | person-id (persons-manifest.json)
+  persons: [],           // [{id,name,count}] uit het manifest (leeg => besturing verborgen)
+  byStem: new Map(),     // uuid-stem -> [person-id, ...]
   idx: -1,               // index in filtered (lightbox)
   thumb: parseInt(localStorage.getItem('dv_thumb') || (IS_TOUCH ? '120' : '200')),
   gap: IS_TOUCH ? 3 : 4,
@@ -505,6 +543,99 @@ async function pumpThumbs() {
   while (thumbBusy < 4 && thumbQueue.length) { thumbBusy++; const job = thumbQueue.shift(); job().finally(() => { thumbBusy--; pumpThumbs(); }); }
 }
 
+/* ---------------- Personen (persons-manifest.json) ---------------- */
+/* --- PERSONS (region start) --- */
+// Pure helpers; geen DOM, geen globals -- de node-test (tools/drive-viewer.persons.test.mjs) evalueert alleen dit blok.
+// Het manifest komt van de sidecar (GET /persons/manifest) en wordt door de Drive-mirror naast de PNG's gezet:
+// {"version":1,"persons":[{id,name,count}],"map":{"<uuid-stem>":["<person-id>",...]}}
+function parsePersonManifest(json) {
+  const empty = { persons: [], byStem: new Map() };
+  try {
+    const j = typeof json === 'string' ? JSON.parse(json) : json;
+    if (!j || typeof j !== 'object' || !Array.isArray(j.persons) || !j.map || typeof j.map !== 'object') return empty;
+    const persons = j.persons.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string').map(p => ({ id: p.id, name: p.name, count: +p.count || 0 }));
+    const byStem = new Map();
+    for (const [stem, v] of Object.entries(j.map)) {
+      const ids = (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []).filter(x => typeof x === 'string');
+      if (ids.length) byStem.set(stem, ids);
+    }
+    return { persons, byStem };
+  } catch (e) { return empty; }
+}
+function stemOfItem(item) {
+  return String((item && item.fn) || '').replace(/\.[^./\\]+$/, '').replace(/_poster$/, '');
+}
+function personsOfItem(item, byStem) {
+  if (!byStem || typeof byStem.get !== 'function') return [];
+  return byStem.get(stemOfItem(item)) || [];
+}
+// Zonder (of met leeg) manifest of zonder gekozen persoon: ALLE items terug -- dit mag nooit items laten vallen.
+function applyPersonFilter(items, personId, byStem) {
+  if (!personId) return items;
+  if (!byStem || typeof byStem.get !== 'function' || byStem.size === 0) return items;
+  if (personId === '__unknown') return items.filter(m => personsOfItem(m, byStem).length === 0);
+  return items.filter(m => personsOfItem(m, byStem).includes(personId));
+}
+// Alleen personen met >=1 item dat NU in deze lijst staat (verouderde manifest-personen vallen weg).
+function presentPersons(items, persons, byStem) {
+  const n = new Map(); let unknown = 0;
+  for (const m of items) {
+    const ids = personsOfItem(m, byStem);
+    if (!ids.length) unknown++;
+    for (const id of new Set(ids)) n.set(id, (n.get(id) || 0) + 1);
+  }
+  const list = (persons || []).filter(p => n.get(p.id) > 0).map(p => ({ id: p.id, name: p.name, n: n.get(p.id) }));
+  list.sort((a, b) => b.n - a.n || String(a.name).localeCompare(String(b.name)));
+  return { list, unknown };
+}
+/* --- PERSONS (region end) --- */
+const Persons = {
+  stamp: '',   // welk manifest er geladen is (Drive: file-id + modifiedTime)
+  sig: '',
+  set(parsed) { S.persons = parsed.persons; S.byStem = parsed.byStem; this.sig = ''; if (gridWrap.classList.contains('show')) refilter(false); },
+  reset() { this.stamp = ''; this.set({ persons: [], byStem: new Map() }); },
+  /** (her)bouw de <select>-opties; verborgen zolang er geen aanwezige personen zijn. */
+  refreshOptions() {
+    const { list, unknown } = presentPersons(S.items, S.persons, S.byStem);
+    const sig = S.persons.length ? list.map(p => p.id + ':' + p.n).join(',') + '|' + unknown : '';
+    if (sig === this.sig) return; this.sig = sig;
+    if (S.personId && S.personId !== '__unknown' && !list.some(p => p.id === S.personId)) S.personId = '';
+    const show = list.length > 0;
+    for (const [sel, wrap] of [[$('personSelect'), $('personSelect')], [$('personSelectSheet'), $('personBlockSheet')]]) {
+      sel.textContent = '';
+      const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+      add('', 'Alle personen');
+      for (const p of list) add(p.id, `${p.name} (${fmtNum(p.n)})`);
+      if (unknown) add('__unknown', `Onbekend (${fmtNum(unknown)})`);
+      sel.value = S.personId;
+      wrap.style.display = show ? '' : 'none';
+    }
+  },
+  /** Drive: het manifest-bestand werd tijdens de scan/sync gezien; haal het (stil) op als het nieuw is. */
+  async driveCheck() {
+    const mf = Drive.state?.manifest; if (!mf) return;
+    const stamp = mf.id + '|' + mf.mt; if (stamp === this.stamp) return;
+    if (!Auth.valid()) return;
+    this.stamp = stamp;
+    try {
+      const r = await fetch(`${API}files/${mf.id}?alt=media`, { headers: { Authorization: 'Bearer ' + Auth.token } });
+      if (!r.ok) { this.stamp = ''; return; }
+      this.set(parsePersonManifest(await r.text()));
+    } catch (e) { this.stamp = ''; }
+  },
+  /** Lokale map / drop: zoek persons-manifest.json in de bestandslijst (vóór het media-filter). */
+  async fromFiles(files) {
+    const f = files.find(x => x.name === 'persons-manifest.json'); if (!f) return;
+    try {
+      const text = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error); fr.readAsText(f); });
+      this.set(parsePersonManifest(text));
+    } catch (e) { /* stil: de besturing blijft verborgen */ }
+  },
+};
+for (const id of ['personSelect', 'personSelectSheet']) $(id).addEventListener('change', e => {
+  S.personId = e.target.value; $('personSelect').value = S.personId; $('personSelectSheet').value = S.personId; refilter(true);
+});
+
 /* ---------------- Filter / sort ---------------- */
 const filterInput = $('filterInput');
 function resort() {
@@ -519,7 +650,8 @@ function refilter(resetScroll = true) {
   const q = S.query.toLowerCase().trim(), k = S.kind;
   const terms = q ? q.split(/\s+/) : [];
   const keepId = S.idx >= 0 ? S.filtered[S.idx]?.id : null;
-  S.filtered = S.sorted.filter(m => {
+  Persons.refreshOptions();
+  S.filtered = applyPersonFilter(S.sorted, S.personId, S.byStem).filter(m => {
     if (k === 'img' && m.video) return false; if (k === 'vid' && !m.video) return false;
     for (const t of terms) if (!m.lname.includes(t)) return false;
     return true;
@@ -558,14 +690,18 @@ for (const sl of [$('sizeSlider'), $('sizeSliderSheet')]) {
 /* ---------------- Sheet (mobiel) ---------------- */
 const openSheet = () => { $('sheet').classList.add('open'); $('sheetBg').classList.add('open'); };
 const closeSheet = () => { $('sheet').classList.remove('open'); $('sheetBg').classList.remove('open'); };
+$('menuFab').addEventListener('click', openSheet);
+$('btnFilterSheet').addEventListener('click', () => { closeSheet(); filterInput.focus(); filterInput.select(); });
+$('btnFilterClearSheet').addEventListener('click', () => { closeSheet(); setFilter(''); });
 $('btnMenu').addEventListener('click', openSheet); $('sheetBg').addEventListener('click', closeSheet);
 
 /* ---------------- Bron: lokale map / drag&drop ---------------- */
 function showGrid() {
-  welcome.style.display = 'none'; topbar.classList.add('show'); gridWrap.classList.add('show');
+  welcome.style.display = 'none'; topbar.classList.add('show'); gridWrap.classList.add('show'); $('menuFab').classList.add('show');
   rebuild(true);
 }
 function loadLocalFiles(files) {
+  Persons.reset(); Persons.fromFiles(files);
   const list = files.filter(f => isMediaName(f.name) && !isExcluded(f.webkitRelativePath || f.name));
   if (!list.length) { toast('Geen media gevonden in deze map', 'bad'); return; }
   for (const m of S.items) if (m.local) URL.revokeObjectURL(m.blob);
@@ -688,6 +824,11 @@ function navigate(d) {
 $('lb-prev').addEventListener('click', e => { e.stopPropagation(); navigate(-1); });
 $('lb-next').addEventListener('click', e => { e.stopPropagation(); navigate(1); });
 $('lb-close').addEventListener('click', closeLightbox);
+$('lbb-close').addEventListener('click', e => { e.stopPropagation(); closeLightbox(); });
+$('lbb-prev').addEventListener('click', e => { e.stopPropagation(); navigate(-1); });
+$('lbb-next').addEventListener('click', e => { e.stopPropagation(); navigate(1); });
+$('lbb-fit').addEventListener('click', e => { e.stopPropagation(); resetZoom(); });
+$('lbb-dl').addEventListener('click', e => { e.stopPropagation(); $('lb-dl').click(); });
 $('lb-open').addEventListener('click', () => { const m = S.filtered[S.idx]; if (!m) return; window.open(m.local ? m.blob : `https://drive.google.com/file/d/${m.id}/view`, '_blank', 'noopener'); });
 $('lb-dl').addEventListener('click', async () => {
   const m = S.filtered[S.idx]; if (!m) return;
@@ -726,14 +867,28 @@ stage.addEventListener('click', e => {
 });
 // Touch: 1 vinger swipe (niet gezoomd) / pan (gezoomd), 2 vingers pinch, dubbel-tik zoom
 let tm = null, t0 = null, pinch0 = 0, scale0 = 1, pc = null, lastTap = 0, hadPinch = false;
+const VIDEO_CTRL_STRIP_PX = 64;
+// IMG: altijd. VIDEO: niet in de onderste strip waar de native controls zitten.
+function gestureAllowed(touch) {
+  if (!lbEl) return false;
+  if (lbEl.tagName === 'IMG') return true;
+  if (lbEl.tagName !== 'VIDEO') return false;
+  const r = lbEl.getBoundingClientRect();
+  return touch.clientY < r.bottom - VIDEO_CTRL_STRIP_PX;
+}
 const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 lightbox.addEventListener('touchstart', e => {
   if (!lbEl) return;
   if (e.touches.length >= 2) { tm = 'pinch'; hadPinch = true; pinch0 = dist(e.touches[0], e.touches[1]); scale0 = scale; pc = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }; return; }
-  const t = e.touches[0]; t0 = { x: t.clientX, y: t.clientY, px: panX, py: panY, time: Date.now(), moved: false }; tm = scale > 1 ? 'pan' : 'swipe';
+  const t = e.touches[0]; t0 = { x: t.clientX, y: t.clientY, px: panX, py: panY, time: Date.now(), moved: false, ok: gestureAllowed(t) }; tm = !t0.ok ? null : (scale > 1 ? 'pan' : 'swipe');
 }, { passive: true });
 lightbox.addEventListener('touchmove', e => {
-  if (!lbEl || lbEl.tagName !== 'IMG') return;
+  if (!lbEl) return;
+  if (lbEl.tagName !== 'IMG') {
+    // Video: alleen swipe meten, nooit preventDefault (native controls blijven werken)
+    if (tm === 'swipe' && t0) { const t = e.touches[0]; if (Math.abs(t.clientX - t0.x) > 8 || Math.abs(t.clientY - t0.y) > 8) t0.moved = true; }
+    return;
+  }
   if (tm === 'pinch' && e.touches.length >= 2) {
     e.preventDefault();
     const d = dist(e.touches[0], e.touches[1]);
@@ -749,11 +904,14 @@ lightbox.addEventListener('touchend', e => {
   if (tm === 'pinch') { if (scale < 1.08) resetZoom(); tm = null; return; }
   if (hadPinch) { hadPinch = false; tm = null; return; }
   const t = e.changedTouches[0];
-  if (tm === 'swipe' && t0 && lbEl.tagName === 'IMG') {
+  if (tm === 'swipe' && t0 && t0.ok) {
     const dx = t.clientX - t0.x, dy = t.clientY - t0.y;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) { navigate(dx > 0 ? -1 : 1); tm = null; return; }
     if (dy > 90 && Math.abs(dx) < 60) { closeLightbox(); tm = null; return; }
-    if (!t0.moved) { const now = Date.now(); if (now - lastTap < 300) { zoomAt(2.5, t.clientX, t.clientY); lastTap = 0; } else lastTap = now; }
+  }
+  if ((tm === 'swipe' || tm === 'pan') && t0 && t0.ok && !t0.moved && lbEl.tagName === 'IMG') {
+    const now = Date.now();
+    if (now - lastTap < 300) { scale > 1 ? resetZoom() : zoomAt(2.5, t.clientX, t.clientY); lastTap = 0; } else lastTap = now;
   }
   tm = null;
 }, { passive: true });
@@ -913,6 +1071,7 @@ const Drive = {
   key() { return 'state:' + this.folder; },
 
   buildItem(f) {
+    if (f.name === 'persons-manifest.json') { this.state.manifest = { id: f.id, mt: f.modifiedTime || '' }; return null; }
     if (!isMediaName(f.name)) return null;
     const p = f.parents?.[0] || '';
     const isOurs = p === this.state.rootId || this.state.folders[p] !== undefined;
@@ -929,18 +1088,19 @@ const Drive = {
   publish(resetScroll = false) {
     S.source = 'drive'; S.items = Array.from(this.state.items.values());
     if (!gridWrap.classList.contains('show')) showGrid(); else rebuild(resetScroll);
+    Persons.driveCheck();
   },
   async persist() {
     if (!this.state) return;
     const st = this.state;
     const items = []; for (const m of st.items.values()) items.push([m.id, m.fn, m.date, m.video ? 1 : 0, m.tb || '', m.p, m.size || 0]);
-    try { await Cache.put(this.key(), { rootId: st.rootId, folders: st.folders, pageToken: st.pageToken, ts: st.ts, items }); } catch (e) { console.warn('cache save', e); }
+    try { await Cache.put(this.key(), { rootId: st.rootId, folders: st.folders, pageToken: st.pageToken, ts: st.ts, items, manifest: st.manifest || null }); } catch (e) { console.warn('cache save', e); }
   },
   async restore() {
     try {
       const raw = await Cache.get(this.key());
       if (raw?.items?.length) {
-        const st = { rootId: raw.rootId, folders: raw.folders || {}, pageToken: raw.pageToken, ts: raw.ts, items: new Map() };
+        const st = { rootId: raw.rootId, folders: raw.folders || {}, pageToken: raw.pageToken, ts: raw.ts, items: new Map(), manifest: raw.manifest || null };
         for (const [id, fn, date, vid, tb, p, size] of raw.items) { const sf = st.folders[p] || ''; const name = sf ? sf + '/' + fn : fn; st.items.set(id, { id, fn, name, lname: name.toLowerCase(), date, video: !!vid, tb: tb || null, p, size }); }
         this.state = st; return true;
       }
@@ -963,7 +1123,7 @@ const Drive = {
   async connect({ interactive = false } = {}) {
     if (!Auth.clientId) { openDriveModal(); return; }
     $('loading').classList.add('active');
-    welcome.style.display = 'none'; topbar.classList.add('show'); gridWrap.classList.add('show');
+    welcome.style.display = 'none'; topbar.classList.add('show'); gridWrap.classList.add('show'); $('menuFab').classList.add('show');
     const restored = this.state ? true : await this.restore();
     if (restored) { this.publish(true); setStatus('busy', `${fmtNum(S.items.length)} items · synchroniseren…`); }
     else setStatus('busy', 'Verbinden…');
@@ -1075,7 +1235,7 @@ const Drive = {
       } while (pt);
       st.ts = Date.now();
       if (changed) { S.newSince = before || 0; this.publish(false); }
-      else updateCounter();
+      else { updateCounter(); Persons.driveCheck(); }
       await this.persist();
       setStatus('ok', `${fmtNum(st.items.size)} items · sync zojuist`);
       if (why === 'manual') toast(changed ? `${added} nieuw · ${changed - added} gewijzigd/verwijderd` : 'Alles is al up-to-date', 'ok');
