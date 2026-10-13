@@ -144,6 +144,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .thumb img, .thumb video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .18s; display: block; }
 .thumb.ready img, .thumb.ready video { opacity: 1; }
+.thumb.broken img { display: none; }
 .thumb.broken::after { content: '⚠'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--text3); font-size: 22px; }
 .thumb .fname {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 6px; font-size: 11px; color: #fff;
@@ -475,7 +476,7 @@ function relayout() {
   syncVisible();
 }
 function renderGrid(resetScroll) {
-  for (const el of live.values()) el.remove(); live.clear();
+  for (const el of live.values()) { Loader.drop(el); el.remove(); } live.clear();
   if (resetScroll) gridWrap.scrollTop = 0;
   updateCounter();
   $('empty').classList.toggle('show', S.filtered.length === 0 && S.items.length > 0);
@@ -493,10 +494,9 @@ function makeThumb(m, i) {
     v.onloadeddata = () => div.classList.add('ready'); v.onerror = () => div.classList.add('ready', 'broken');
     div.appendChild(v);
   } else {
-    const img = document.createElement('img'); img.alt = ''; img.decoding = 'async'; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
-    img.onload = () => div.classList.add('ready');
-    img.onerror = () => thumbFailed(m, img, div);
-    img.src = thumbUrl(m);
+    // Geen src hier: de Loader zet hem pas als de tegel na het scrollen nog in beeld staat.
+    const img = document.createElement('img'); img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+    img._m = m; div._img = img;
     div.appendChild(img);
   }
   if (m.video) { const b = document.createElement('span'); b.className = 'badge play'; b.textContent = '▶'; div.appendChild(b); }
@@ -511,34 +511,108 @@ function syncVisible() {
   const r0 = Math.max(0, Math.floor(top / (vRowH + g)) - over);
   const r1 = Math.min(vRows - 1, Math.ceil((top + h) / (vRowH + g)) + over);
   const i0 = r0 * vCols, i1 = Math.min(S.filtered.length - 1, (r1 + 1) * vCols - 1);
-  for (const [i, el] of live) if (i < i0 || i > i1) { el.remove(); live.delete(i); }
+  for (const [i, el] of live) if (i < i0 || i > i1) { Loader.drop(el); el.remove(); live.delete(i); }
   const frag = document.createDocumentFragment();
   for (let i = i0; i <= i1; i++) {
     if (live.has(i)) continue;
     const el = makeThumb(S.filtered[i], i); frag.appendChild(el); live.set(i, el);
   }
   if (frag.childNodes.length) grid.appendChild(frag);
+  Loader.schedule();
 }
-gridWrap.addEventListener('scroll', () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; syncVisible(); }); }, { passive: true });
+gridWrap.addEventListener('scroll', () => { Loader.lastScroll = performance.now(); if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; syncVisible(); }); }, { passive: true });
 window.addEventListener('resize', relayout, { passive: true });
 grid.addEventListener('click', e => { const t = e.target.closest('.thumb'); if (t) openLightbox(+t.dataset.idx); });
 
+/* Thumbnail-loader.
+   Vroeger kreeg elke tegel direct een src. Bij snel scrollen vuurden zo honderden requests voor tegels
+   die al weer uit beeld waren; Google throttlet dan (429), de img-error kan dat niet van een echt
+   ontbrekende thumb onderscheiden, en na 2 fouten bleef de tegel voorgoed ⚠ -- terwijl de zichtbare
+   tegels achter die wachtrij stonden. Nu:
+   - src pas zodra het scrollen even stilvalt (of traag genoeg is), zichtbare rijen eerst;
+   - max LOAD_MAX requests tegelijk; een tegel die uit beeld valt annuleert zijn request;
+   - een uitbarsting van fouten = throttling: pauzeren en opnieuw, zonder de tegel af te schrijven;
+   - ⚠ is tijdelijk: na BROKEN_RETRY_MS wordt het bij terugscrollen opnieuw geprobeerd. */
+const LOAD_MAX = 12;            // gelijktijdige thumbnail-requests
+const SCROLL_IDLE_MS = 90;      // zo lang stil = "gestopt met scrollen"
+const BROKEN_RETRY_MS = 30000;
+const Loader = {
+  inflight: new Set(), lastScroll: 0, pausedUntil: 0, timer: 0, errs: [], backoff: 0,
+  schedule(delay = 0) { if (!this.timer) this.timer = setTimeout(() => { this.timer = 0; this.pump(); }, delay); },
+  /** Tegels in beeld eerst (op afstand tot het midden van de viewport), daarna de overscan. */
+  candidates() {
+    const top = gridWrap.scrollTop, bot = top + gridWrap.clientHeight, mid = (top + bot) / 2, rowH = vRowH + S.gap;
+    const out = [], now = Date.now();
+    for (const [i, el] of live) {
+      const img = el._img; if (!img || img._state) continue;
+      const m = img._m;
+      if (m._broken) { if (now - m._broken < BROKEN_RETRY_MS) { el.classList.add('ready', 'broken'); img._state = 'broken'; continue; } m._broken = 0; m._r = 0; }
+      const y = Math.floor(i / vCols) * rowH + rowH / 2;
+      out.push([Math.abs(y - mid) + (y < top - rowH || y > bot + rowH ? 1e6 : 0), el]);
+    }
+    return out.sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  },
+  pump() {
+    const now = performance.now();
+    if (now < this.pausedUntil) return this.schedule(this.pausedUntil - now + 5);
+    // Snel scrollen: niets starten (wat nu in beeld is, is over 50 ms weg).
+    if (now - this.lastScroll < SCROLL_IDLE_MS && this.scrollSpeed() > 1.5) return this.schedule(SCROLL_IDLE_MS);
+    for (const el of this.candidates()) { if (this.inflight.size >= LOAD_MAX) break; this.start(el); }
+  },
+  /** px/ms over de laatste twee scroll-samples. */
+  scrollSpeed() {
+    const t = performance.now(), y = gridWrap.scrollTop, p = this._p;
+    this._p = { t, y };
+    return p && t > p.t ? Math.abs(y - p.y) / (t - p.t) : 0;
+  },
+  start(el, url) {
+    const img = el._img, m = img._m;
+    img._state = 'loading'; this.inflight.add(img);
+    img.onload = () => { this.done(img); m._r = 0; el.classList.add('ready'); };
+    img.onerror = () => { this.done(img); this.failed(el); };
+    img.src = url || thumbUrl(m);
+  },
+  done(img) { img.onload = img.onerror = null; this.inflight.delete(img); this.schedule(); },
+  /** Tegel uit beeld: lopend request afbreken zodat het geen slot (en geen Google-quota) meer kost. */
+  drop(el) {
+    const img = el._img; if (!img) return;
+    if (img._state === 'loading') { img.onload = img.onerror = null; img.removeAttribute('src'); this.inflight.delete(img); this.schedule(); }
+    img._state = 'gone';
+  },
+  failed(el) {
+    const img = el._img, m = img._m;
+    if (img._state === 'gone') return;
+    const now = performance.now();
+    this.errs = this.errs.filter(t => now - t < 2000); this.errs.push(now);
+    if (this.errs.length >= 6 && !m.local) {
+      // Uitbarsting = throttling, niet "deze thumb bestaat niet": pauzeer, tegel later opnieuw.
+      this.backoff = Math.min(8000, (this.backoff || 500) * 2); this.pausedUntil = now + this.backoff; this.errs = [];
+      img.removeAttribute('src'); img._state = ''; this.schedule(this.backoff); return;
+    }
+    if (this.errs.length <= 1) this.backoff = 0;
+    thumbFailed(m, el);
+  },
+};
 // Thumbnail-fallback: gesigneerde lh3-links verlopen na een paar uur. Eerst nieuwe link via API, anders cookie-variant.
-const thumbQueue = []; let thumbBusy = 0;
-function thumbFailed(m, img, div) {
-  if (m.local || (m._r || 0) >= 2) { div.classList.add('ready', 'broken'); return; }
+const cookieThumb = m => `https://drive.google.com/thumbnail?id=${m.id}&sz=w${THUMB_S}`;
+function thumbFailed(m, el) {
+  const img = el._img;
+  if (m.local || (m._r || 0) >= 2) { m._broken = Date.now(); img._state = 'broken'; img.removeAttribute('src'); el.classList.add('ready', 'broken'); return; }
   m._r = (m._r || 0) + 1;
   if (m._r === 1 && S.source === 'drive' && Auth.valid()) {
+    img._state = 'refresh';
     thumbQueue.push(async () => {
+      let url = cookieThumb(m);
       try {
         const f = await api(`files/${m.id}`, { fields: 'thumbnailLink' });
-        if (f.thumbnailLink) { m.tb = stripThumb(f.thumbnailLink); img.src = thumbUrl(m); Cache.dirty(); return; }
+        if (f.thumbnailLink) { m.tb = stripThumb(f.thumbnailLink); url = thumbUrl(m); Cache.dirty(); }
       } catch (e) { }
-      img.src = `https://drive.google.com/thumbnail?id=${m.id}&sz=w${THUMB_S}`;
+      if (img._state === 'refresh') Loader.start(el, url);
     });
     pumpThumbs();
-  } else img.src = `https://drive.google.com/thumbnail?id=${m.id}&sz=w${THUMB_S}`;
+  } else Loader.start(el, cookieThumb(m));
 }
+const thumbQueue = []; let thumbBusy = 0;
 async function pumpThumbs() {
   while (thumbBusy < 4 && thumbQueue.length) { thumbBusy++; const job = thumbQueue.shift(); job().finally(() => { thumbBusy--; pumpThumbs(); }); }
 }
