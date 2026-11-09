@@ -555,6 +555,9 @@ const Loader = {
   pump() {
     const now = performance.now();
     if (now < this.pausedUntil) return this.schedule(this.pausedUntil - now + 5);
+    // Lightbox open: de tegels staan erachter en zijn onzichtbaar. Niets starten -- die requests
+    // vochten met het volle beeld en de voorlader om dezelfde verbinding (en hetzelfde quotum).
+    if (lbOpen) return this.schedule(400);
     // Snel scrollen: niets starten (wat nu in beeld is, is over 50 ms weg).
     if (now - this.lastScroll < SCROLL_IDLE_MS && this.scrollSpeed() > 1.5) return this.schedule(SCROLL_IDLE_MS);
     for (const el of this.candidates()) { if (this.inflight.size >= LOAD_MAX) break; this.start(el); }
@@ -810,16 +813,101 @@ document.addEventListener('drop', async e => {
   } else loadLocalFiles(Array.from(e.dataTransfer.files));
 });
 
+/* --- PREFETCH (region start) --- */
+/* Voorladen in de lightbox: WELKE buren, en wat mag uit het geheugen weg.
+   Puur rekenwerk, geen DOM -- getest in drive-viewer.prefetch.test.mjs.
+   Het venster is klein met opzet: een gedecodeerd 2560px-beeld kost ~25 MB, dus vier
+   vastgehouden buren is al ~100 MB op een telefoon. */
+const PREFETCH_AHEAD = 2;              // buren vooruit (in de kijkrichting)
+const PREFETCH_BACK = 1;               // buren terug
+const PREFETCH_MAX = 4;                // vastgehouden <img>-elementen naast het huidige beeld
+const PREFETCH_VIDEO_BYTES = 40 * 1024 * 1024;  // grens voor het vooruit downloaden van een video
+
+/** Indexen om te warmen rond idx, dichtstbij en IN de kijkrichting eerst. dir: +1 vooruit, -1 terug. */
+function prefetchPlan(idx, len, dir, ahead = PREFETCH_AHEAD, back = PREFETCH_BACK) {
+  if (!Number.isInteger(idx) || !(len > 0) || idx < 0 || idx >= len) return [];
+  const d = dir < 0 ? -1 : 1, out = [];
+  const push = i => { if (i >= 0 && i < len && i !== idx && !out.includes(i)) out.push(i); };
+  for (let k = 1; k <= Math.max(ahead, back); k++) {
+    if (k <= ahead) push(idx + d * k);
+    if (k <= back) push(idx - d * k);
+  }
+  return out;
+}
+
+/** Sleutels die uit een LRU mogen (oudste eerst), nooit een vastgezette. keys: oud -> nieuw. */
+function lruEvict(keys, pinned, max = PREFETCH_MAX) {
+  const pin = new Set((pinned || []).filter(k => k != null));
+  const out = [];
+  let n = keys.length;
+  for (const k of keys) {
+    if (n <= max) break;
+    if (pin.has(k)) continue;
+    out.push(k); n--;
+  }
+  return out;
+}
+/* --- PREFETCH (region end) --- */
+
 /* ---------------- Lightbox ---------------- */
 const lightbox = $('lightbox'), stage = $('lb-stage');
 let lbEl = null, scale = 1, panX = 0, panY = 0, curLoad = null;
-const blobCache = new Map(); // id -> objectURL (LRU, max 4)
+const blobCache = new Map(); // id -> objectURL (LRU, PREFETCH_MAX, nooit de url die nu speelt)
 
-function openLightbox(i) { if (i < 0 || i >= S.filtered.length) return; S.idx = i; lightbox.classList.add('open'); showMedia(); highlight(); }
+/* Voorlader.
+   Vroeger: `new Image(); pi.src = ...` voor drie buren, zonder de elementen te bewaren. Een
+   Image waar niemand naar wijst mag de browser opruimen -- iOS Safari breekt het request dan af,
+   en de gedecodeerde bitmap gooit hij hoe dan ook weg zodra het element onbereikbaar is. Het
+   "voorladen" leverde dus vaak niets op en de volgende switch wachtte alsnog op het netwerk.
+   Nu bewaren we de elementen zelf en HANGEN we het voorgeladen element in de stage: geen tweede
+   request, geen tweede decode. De meta-regel laat zien of het uit de voorlader kwam (bliksem) of
+   dat er alsnog op het netwerk gewacht is (x,y s) -- zonder die aflezing is "het voelt sneller"
+   geen bewijs. */
+const preImg = new Map();   // id -> HTMLImageElement (LRU, PREFETCH_MAX)
+let lbOpen = false, navDir = 1, preTimer = 0, bgLoad = null;
+
+function schedulePrefetch(delay) { clearTimeout(preTimer); preTimer = setTimeout(prefetchAround, delay); }
+
+function makePre(m) {
+  const img = new Image();
+  img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.alt = '';
+  img._url = fullUrl(m); img.src = img._url;
+  preImg.set(m.id, img);
+  return img;
+}
+
+function prefetchAround() {
+  if (!lbOpen) return;
+  const cur = S.filtered[S.idx], plan = prefetchPlan(S.idx, S.filtered.length, navDir);
+  for (const i of plan) {
+    const n = S.filtered[i];
+    if (!n || n.video || n.local) continue;
+    const hit = preImg.get(n.id);
+    if (hit && hit._url === fullUrl(n)) { preImg.delete(n.id); preImg.set(n.id, hit); continue; }  // LRU-touch
+    makePre(n);
+  }
+  for (const k of lruEvict([...preImg.keys()], [cur && cur.id], PREFETCH_MAX + 1)) preImg.delete(k);
+
+  // Een video vooruit, en alleen een kleine: dit is een volledige download, geen range-request.
+  const vi = prefetchPlan(S.idx, S.filtered.length, navDir, 1, 0)[0];
+  const nv = vi == null ? null : S.filtered[vi];
+  const want = nv && nv.video && !nv.local && !blobCache.has(nv.id) && nv.size > 0 && nv.size <= PREFETCH_VIDEO_BYTES ? nv : null;
+  if (bgLoad && (!want || bgLoad.id !== want.id)) { bgLoad.ctrl.abort(); bgLoad = null; }
+  if (want && !bgLoad) {
+    const ctrl = new AbortController(); bgLoad = { id: want.id, ctrl };
+    fetchBlob(want, null, ctrl).catch(() => { }).finally(() => { if (bgLoad && bgLoad.id === want.id) bgLoad = null; });
+  }
+}
+
+function openLightbox(i) { if (i < 0 || i >= S.filtered.length) return; S.idx = i; navDir = 1; lbOpen = true; lightbox.classList.add('open'); showMedia(); highlight(); }
 function closeLightbox() {
   lightbox.classList.remove('open', 'hideui');
+  lbOpen = false; clearTimeout(preTimer); preTimer = 0;
   if (curLoad) { curLoad.abort(); curLoad = null; }
+  if (bgLoad) { bgLoad.ctrl.abort(); bgLoad = null; }
   if (lbEl) { if (lbEl.tagName === 'VIDEO') { try { lbEl.pause(); } catch { } lbEl.removeAttribute('src'); lbEl.load(); } lbEl.remove(); lbEl = null; }
+  preImg.clear();     // gedecodeerde beelden teruggeven; de HTTP-cache houdt de bytes
+  Loader.schedule();  // tegels mochten niet laden zolang de lightbox open stond
   S.idx = -1; highlight(); resetZoom();
 }
 function highlight() {
@@ -833,15 +921,19 @@ function scrollThumbIntoView() {
   syncVisible(); highlight();
 }
 function setProgress(p) { const el = $('lb-progress'); el.classList.toggle('show', p != null); if (p != null) el.firstElementChild.style.width = Math.round(p * 100) + '%'; }
-function metaHtml(m, extra) {
+function metaHtml(m, ...extra) {
   const folder = m.name.includes('/') ? m.name.slice(0, m.name.lastIndexOf('/')) : '';
   const parts = [`${S.idx + 1} / ${fmtNum(S.filtered.length)}`];
   if (folder) parts.push(`<span class="folder" data-folder="${folder.replace(/"/g, '&quot;')}">${folder}</span>`);
-  parts.push(fmtDate(m.date)); if (m.size) parts.push(fmtBytes(m.size)); if (extra) parts.push(extra);
+  parts.push(fmtDate(m.date)); if (m.size) parts.push(fmtBytes(m.size));
+  for (const x of extra) if (x) parts.push(x);
   return parts.join('<span class="sep">·</span>');
 }
+/** Aflezing per switch: kwam dit beeld uit de voorlader, of is er op het netwerk gewacht? */
+const loadTag = ms => ms < 60 ? '<span style="color:var(--ok)" title="uit de voorlader">⚡</span>' : `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
 async function showMedia() {
   const m = S.filtered[S.idx]; if (!m) return;
+  const t0 = performance.now();
   if (curLoad) { curLoad.abort(); curLoad = null; }
   if (lbEl) { if (lbEl.tagName === 'VIDEO') { try { lbEl.pause(); } catch { } } lbEl.remove(); lbEl = null; }
   resetZoom(); setProgress(null);
@@ -850,7 +942,9 @@ async function showMedia() {
   if (m.video) {
     const v = document.createElement('video'); v.controls = true; v.autoplay = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
     lbEl = v; stage.appendChild(v);
-    v.addEventListener('loadedmetadata', () => { if (lbEl === v) $('lb-meta').innerHTML = metaHtml(m, `${v.videoWidth}×${v.videoHeight}`); });
+    const warm = m.local || blobCache.has(m.id);
+    v.addEventListener('loadedmetadata', () => { if (lbEl === v) $('lb-meta').innerHTML = metaHtml(m, `${v.videoWidth}×${v.videoHeight}`, loadTag(performance.now() - t0)); });
+    schedulePrefetch(warm ? 0 : 1500);   // een koude video krijgt eerst zelf de bandbreedte
     if (m.local) { v.src = m.blob; return; }
     try {
       const url = await fetchBlob(m, p => setProgress(p));
@@ -860,25 +954,40 @@ async function showMedia() {
       if (e.name === 'AbortError') return;
       setProgress(null); $('lb-meta').innerHTML = metaHtml(m, `<span style="color:var(--bad)">video laden mislukt — ${describeError(e)}</span>`);
     }
-  } else {
-    const img = document.createElement('img'); img.draggable = false; img.alt = m.fn; img.referrerPolicy = 'no-referrer';
+  } else if (m.local) {
+    const img = document.createElement('img'); img.draggable = false; img.alt = m.fn;
     lbEl = img; stage.appendChild(img);
     img.onload = () => { if (lbEl === img) $('lb-meta').innerHTML = metaHtml(m, `${img.naturalWidth}×${img.naturalHeight}`); };
+    img.src = m.blob;
+    schedulePrefetch(0);
+  } else {
+    // Al voorgeladen? Dan hangen we datzelfde element op het podium: geen request, geen decode.
+    const url = fullUrl(m);
+    const hit = preImg.get(m.id);
+    const img = hit && hit._url === url ? hit : makePre(m);
+    preImg.delete(m.id); preImg.set(m.id, img);   // LRU-touch: het huidige beeld is het jongst
+    const warm = img.complete && img.naturalWidth > 0;
+    img.draggable = false; img.alt = m.fn; img.style.transform = '';
+    lbEl = img; stage.appendChild(img);
+    const meta = () => { if (lbEl === img) $('lb-meta').innerHTML = metaHtml(m, `${img.naturalWidth}×${img.naturalHeight}`, loadTag(performance.now() - t0)); };
+    img.onload = () => { meta(); if (lbEl === img) schedulePrefetch(80); };
     img.onerror = async () => {
-      if (m.local || img.dataset.fallback) return;
+      if (img.dataset.fallback) return;
       img.dataset.fallback = '1';
       try { img.src = await fetchBlob(m, p => setProgress(p)); setProgress(null); } catch (e) { setProgress(null); }
     };
-    img.src = fullUrl(m);
-    // Voorladen van buren
-    for (const off of [1, -1, 2]) { const n = S.filtered[S.idx + off]; if (n && !n.video && !n.local) { const pi = new Image(); pi.referrerPolicy = 'no-referrer'; pi.src = fullUrl(n); } }
+    if (warm) { meta(); schedulePrefetch(0); }
+    // Een voorgeladen buur die al mislukt was (verlopen gesigneerde link) vuurt zijn error niet
+    // opnieuw af als we hem ophangen -- dan zou de fallback nooit draaien en bleef het beeld leeg.
+    else if (img.complete) { img.onerror(); schedulePrefetch(0); }
+    else schedulePrefetch(900);   // vangnet als onload wegblijft (404, trage generatie)
   }
 }
 // Volledige download via API (voor video's en als de gesigneerde link verlopen is)
-async function fetchBlob(m, onProgress) {
+async function fetchBlob(m, onProgress, bgCtrl) {
   if (blobCache.has(m.id)) { const u = blobCache.get(m.id); blobCache.delete(m.id); blobCache.set(m.id, u); return u; }
   if (m.size && m.size > 600 * 1024 * 1024) throw new Error('bestand is te groot voor streaming in de browser; open in Drive');
-  const ctrl = new AbortController(); curLoad = ctrl;
+  const ctrl = bgCtrl || new AbortController(); if (!bgCtrl) curLoad = ctrl;
   const tok = await Auth.ensure();
   const r = await fetch(`${API}files/${m.id}?alt=media`, { headers: { Authorization: 'Bearer ' + tok }, signal: ctrl.signal });
   if (!r.ok) throw Object.assign(new Error('HTTP ' + r.status), { status: r.status });
@@ -887,12 +996,17 @@ async function fetchBlob(m, onProgress) {
   for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
   const url = URL.createObjectURL(new Blob(chunks, { type: r.headers.get('Content-Type') || (m.video ? 'video/mp4' : 'image/png') }));
   blobCache.set(m.id, url);
-  while (blobCache.size > 4) { const [k, u] = blobCache.entries().next().value; URL.revokeObjectURL(u); blobCache.delete(k); }
-  if (curLoad === ctrl) curLoad = null;
+  // Nooit de url intrekken die nu speelt (of die net vooruit gehaald is) -- dat brak de video.
+  const cur = S.filtered[S.idx];
+  for (const k of lruEvict([...blobCache.keys()], [cur && cur.id, bgLoad && bgLoad.id, m.id], PREFETCH_MAX)) {
+    URL.revokeObjectURL(blobCache.get(k)); blobCache.delete(k);
+  }
+  if (!bgCtrl && curLoad === ctrl) curLoad = null;
   return url;
 }
 function navigate(d) {
   const n = S.idx + d; if (n < 0 || n >= S.filtered.length) return;
+  navDir = d < 0 ? -1 : 1;
   S.idx = n; showMedia(); scrollThumbIntoView();
 }
 $('lb-prev').addEventListener('click', e => { e.stopPropagation(); navigate(-1); });
