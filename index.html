@@ -171,7 +171,13 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4
 #lightbox.open { display: block; }
 #lb-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 #lb-stage img, #lb-stage video { max-width: 100vw; max-height: 100dvh; object-fit: contain; transform-origin: center center; will-change: transform; display: block; }
-#lb-stage img { -webkit-user-drag: none; cursor: zoom-in; }
+#lb-stage img { -webkit-user-drag: none; cursor: zoom-in; position: relative; z-index: 1; }
+/* Voorvertoning: de s440-thumbnail staat al in de cache, dus die kost niets en vult het gat
+   terwijl het volle beeld binnenkomt. Buiten de flow, zodat hij exact onder het echte beeld ligt. */
+#lb-stage img.ph {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
+  object-fit: contain; transform: none; z-index: 0; filter: blur(1.5px);
+}
 #lb-stage.zoomed img { cursor: grab; }
 #lb-stage.dragging img { cursor: grabbing; }
 #lb-stage video { outline: none; background: #000; }
@@ -386,7 +392,11 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 const API = 'https://www.googleapis.com/drive/v3/';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const THUMB_S = 440;      // thumbnail-breedte bij Google (=sNNN)
-const FULL_S = 2560;      // lightbox-breedte
+/* lh3-renderingen boven een zekere maat worden door Chrome's ORB geweigerd op dit origin
+   (ERR_BLOCKED_BY_ORB -- Google geeft dan geen plaatje terug maar een foutpagina). We zakken
+   deze ladder af tot er een maat laadt en onthouden die voor de sessie; haalt geen enkele sport
+   het, dan is de API-download het enige pad. GEMETEN 09-11: s2560 wordt geblokkeerd. */
+const FULL_LADDER = [2560, 1600, 1024];
 
 const VIDEO_RE = /\.(mp4|webm|mov|m4v|avi|mkv)$/i;
 const MEDIA_RE = /\.(jpe?g|png|webp|gif|bmp|avif|mp4|webm|mov|m4v)$/i;
@@ -449,7 +459,13 @@ const S = {
 };
 // Item: { id, fn (bestandsnaam), name (pad), lname, date, video, tb (thumb-base), p (parent), size, local?, blob? }
 function thumbUrl(m) { return m.local ? m.blob : m.tb ? `${m.tb}=s${THUMB_S}` : `https://drive.google.com/thumbnail?id=${m.id}&sz=w${THUMB_S}`; }
-function fullUrl(m) { return m.local ? m.blob : m.tb ? `${m.tb}=s${FULL_S}` : `https://drive.google.com/thumbnail?id=${m.id}&sz=w${FULL_S}`; }
+/** Url van het volle beeld op de huidige sport van de ladder, of null als lh3 hier niets levert. */
+function fullUrl(m) {
+  if (m.local) return m.blob;
+  if (fullStep < 0) return null;
+  const sz = FULL_LADDER[fullStep];
+  return m.tb ? `${m.tb}=s${sz}` : `https://drive.google.com/thumbnail?id=${m.id}&sz=w${sz}`;
+}
 
 /* ---------------- Grid (virtueel) ---------------- */
 const grid = $('grid'), gridWrap = $('grid-wrap'), topbar = $('topbar'), welcome = $('welcome');
@@ -822,6 +838,9 @@ const PREFETCH_AHEAD = 2;              // buren vooruit (in de kijkrichting)
 const PREFETCH_BACK = 1;               // buren terug
 const PREFETCH_MAX = 4;                // vastgehouden <img>-elementen naast het huidige beeld
 const PREFETCH_VIDEO_BYTES = 40 * 1024 * 1024;  // grens voor het vooruit downloaden van een video
+const BG_MAX = 2;                      // gelijktijdige achtergrond-downloads
+const BLOB_MAX_ITEMS = 10;             // gedownloade bestanden in de cache
+const BLOB_MAX_BYTES = 160 * 1024 * 1024;
 
 /** Indexen om te warmen rond idx, dichtstbij en IN de kijkrichting eerst. dir: +1 vooruit, -1 terug. */
 function prefetchPlan(idx, len, dir, ahead = PREFETCH_AHEAD, back = PREFETCH_BACK) {
@@ -847,12 +866,26 @@ function lruEvict(keys, pinned, max = PREFETCH_MAX) {
   }
   return out;
 }
+/** Als lruEvict, maar met een budget in BYTES erbij: beide grenzen moeten halen. */
+function lruEvictBytes(entries, pinned, maxCount = BLOB_MAX_ITEMS, maxBytes = BLOB_MAX_BYTES) {
+  const pin = new Set((pinned || []).filter(k => k != null));
+  const out = [];
+  let n = entries.length, bytes = 0;
+  for (const [, b] of entries) bytes += b || 0;
+  for (const [k, b] of entries) {
+    if (n <= maxCount && bytes <= maxBytes) break;
+    if (pin.has(k)) continue;
+    out.push(k); n--; bytes -= b || 0;
+  }
+  return out;
+}
 /* --- PREFETCH (region end) --- */
 
 /* ---------------- Lightbox ---------------- */
 const lightbox = $('lightbox'), stage = $('lb-stage');
 let lbEl = null, scale = 1, panX = 0, panY = 0, curLoad = null;
-const blobCache = new Map(); // id -> objectURL (LRU, PREFETCH_MAX, nooit de url die nu speelt)
+const blobCache = new Map(); // id -> objectURL (LRU op bytes, nooit de url die nu speelt)
+const blobBytes = new Map(); // id -> bytes van die blob
 
 /* Voorlader.
    Vroeger: `new Image(); pi.src = ...` voor drie buren, zonder de elementen te bewaren. Een
@@ -864,7 +897,9 @@ const blobCache = new Map(); // id -> objectURL (LRU, PREFETCH_MAX, nooit de url
    dat er alsnog op het netwerk gewacht is (x,y s) -- zonder die aflezing is "het voelt sneller"
    geen bewijs. */
 const preImg = new Map();   // id -> HTMLImageElement (LRU, PREFETCH_MAX)
-let lbOpen = false, navDir = 1, preTimer = 0, bgLoad = null;
+const bg = new Map();       // id -> AbortController voor een lopende achtergrond-download
+const fullFails = new Set();  // ids die op DEZE sport van de ladder mislukten
+let lbOpen = false, navDir = 1, preTimer = 0, fullStep = 0;
 
 function schedulePrefetch(delay) { clearTimeout(preTimer); preTimer = setTimeout(prefetchAround, delay); }
 
@@ -876,26 +911,43 @@ function makePre(m) {
   return img;
 }
 
+/** Een sport veroordelen kost TWEE verschillende bestanden: één kapot bestand is geen ORB-blokkade.
+    Retour: true als de ladder zakte (dit beeld opnieuw proberen), false (dit beeld via de API). */
+function ladderDown(id) {
+  fullFails.add(id);
+  if (fullFails.size < 2) return false;
+  fullStep = fullStep + 1 >= FULL_LADDER.length ? -1 : fullStep + 1;
+  fullFails.clear();
+  preImg.clear();   // alles wat we warmden stond op de dode maat
+  return true;
+}
+
 function prefetchAround() {
   if (!lbOpen) return;
   const cur = S.filtered[S.idx], plan = prefetchPlan(S.idx, S.filtered.length, navDir);
+  const want = [];   // items die een achtergrond-DOWNLOAD nodig hebben (de API is dan het enige pad)
   for (const i of plan) {
     const n = S.filtered[i];
-    if (!n || n.video || n.local) continue;
-    const hit = preImg.get(n.id);
-    if (hit && hit._url === fullUrl(n)) { preImg.delete(n.id); preImg.set(n.id, hit); continue; }  // LRU-touch
-    makePre(n);
+    if (!n || n.local) continue;
+    if (n.video) {
+      // Alleen de eerstvolgende, en alleen een kleine: dit is een volledige download.
+      if (i === plan[0] && !blobCache.has(n.id) && n.size > 0 && n.size <= PREFETCH_VIDEO_BYTES) want.push(n);
+    } else if (fullStep >= 0) {
+      const hit = preImg.get(n.id);
+      if (hit && hit._url === fullUrl(n)) { preImg.delete(n.id); preImg.set(n.id, hit); }  // LRU-touch
+      else makePre(n);
+    } else if (!blobCache.has(n.id)) {
+      want.push(n);   // ORB blokkeert elke lh3-maat: voorladen MOET dan via dezelfde API-download
+    }
   }
   for (const k of lruEvict([...preImg.keys()], [cur && cur.id], PREFETCH_MAX + 1)) preImg.delete(k);
 
-  // Een video vooruit, en alleen een kleine: dit is een volledige download, geen range-request.
-  const vi = prefetchPlan(S.idx, S.filtered.length, navDir, 1, 0)[0];
-  const nv = vi == null ? null : S.filtered[vi];
-  const want = nv && nv.video && !nv.local && !blobCache.has(nv.id) && nv.size > 0 && nv.size <= PREFETCH_VIDEO_BYTES ? nv : null;
-  if (bgLoad && (!want || bgLoad.id !== want.id)) { bgLoad.ctrl.abort(); bgLoad = null; }
-  if (want && !bgLoad) {
-    const ctrl = new AbortController(); bgLoad = { id: want.id, ctrl };
-    fetchBlob(want, null, ctrl).catch(() => { }).finally(() => { if (bgLoad && bgLoad.id === want.id) bgLoad = null; });
+  const keep = want.slice(0, BG_MAX).map(n => n.id);
+  for (const [id, c] of bg) if (!keep.includes(id)) { c.abort(); bg.delete(id); }
+  for (const n of want.slice(0, BG_MAX)) {
+    if (bg.has(n.id)) continue;
+    const ctrl = new AbortController(); bg.set(n.id, ctrl);
+    fetchBlob(n, null, ctrl).catch(() => { }).finally(() => { if (bg.get(n.id) === ctrl) bg.delete(n.id); });
   }
 }
 
@@ -904,7 +956,8 @@ function closeLightbox() {
   lightbox.classList.remove('open', 'hideui');
   lbOpen = false; clearTimeout(preTimer); preTimer = 0;
   if (curLoad) { curLoad.abort(); curLoad = null; }
-  if (bgLoad) { bgLoad.ctrl.abort(); bgLoad = null; }
+  for (const [, c] of bg) c.abort();
+  bg.clear();
   if (lbEl) { if (lbEl.tagName === 'VIDEO') { try { lbEl.pause(); } catch { } lbEl.removeAttribute('src'); lbEl.load(); } lbEl.remove(); lbEl = null; }
   preImg.clear();     // gedecodeerde beelden teruggeven; de HTTP-cache houdt de bytes
   Loader.schedule();  // tegels mochten niet laden zolang de lightbox open stond
@@ -930,12 +983,16 @@ function metaHtml(m, ...extra) {
   return parts.join('<span class="sep">·</span>');
 }
 /** Aflezing per switch: kwam dit beeld uit de voorlader, of is er op het netwerk gewacht? */
-const loadTag = ms => ms < 60 ? '<span style="color:var(--ok)" title="uit de voorlader">⚡</span>' : `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
+const loadTag = (ms, src) => {
+  const t = ms < 60 ? '<span style="color:var(--ok)" title="uit de voorlader">⚡</span>' : `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
+  return src ? `${t} <span style="opacity:.6" title="pad dat de pixels leverde">${src}</span>` : t;
+};
 async function showMedia() {
   const m = S.filtered[S.idx]; if (!m) return;
   const t0 = performance.now();
   if (curLoad) { curLoad.abort(); curLoad = null; }
   if (lbEl) { if (lbEl.tagName === 'VIDEO') { try { lbEl.pause(); } catch { } } lbEl.remove(); lbEl = null; }
+  for (const e of stage.querySelectorAll('img.ph')) e.remove();
   resetZoom(); setProgress(null);
   $('lb-name').textContent = m.fn; $('lb-meta').innerHTML = metaHtml(m);
 
@@ -960,29 +1017,78 @@ async function showMedia() {
     img.onload = () => { if (lbEl === img) $('lb-meta').innerHTML = metaHtml(m, `${img.naturalWidth}×${img.naturalHeight}`); };
     img.src = m.blob;
     schedulePrefetch(0);
-  } else {
-    // Al voorgeladen? Dan hangen we datzelfde element op het podium: geen request, geen decode.
+  } else showImage(m, t0);
+}
+
+/** De s440-thumbnail staat al in de cache (het grid laadde hem), dus dit vult het gat gratis. */
+function addPlaceholder(m) {
+  if (!m.tb && !m.id) return;
+  const ph = new Image();
+  ph.className = 'ph'; ph.alt = ''; ph.draggable = false; ph.referrerPolicy = 'no-referrer';
+  ph.src = thumbUrl(m);
+  stage.appendChild(ph);
+}
+const dropPlaceholders = () => { for (const e of stage.querySelectorAll('img.ph')) e.remove(); };
+
+/* Het volle beeld van Drive, langs twee paden:
+   1. een lh3-rendering (geen auth, CDN, een paar honderd kB) -- maar ORB blokkeert de grote maten
+      op dit origin, dus de ladder zoekt de grootste maat die hier wél laadt;
+   2. anders de API-download (`alt=media`): het hele originele bestand, ~1,7 MB en ~900 ms plus een
+      CORS-preflight. Dat is het pad dat de voorlader dan moet warmen -- een voorlader die de
+      lh3-url warmt terwijl die geblokkeerd wordt, levert per definitie niets op. */
+function showImage(m, t0) {
+  const meta = (el, src) => { if (lbEl === el) $('lb-meta').innerHTML = metaHtml(m, `${el.naturalWidth}×${el.naturalHeight}`, loadTag(performance.now() - t0, src)); };
+
+  if (fullStep >= 0 && !blobCache.has(m.id)) {
     const url = fullUrl(m);
     const hit = preImg.get(m.id);
     const img = hit && hit._url === url ? hit : makePre(m);
     preImg.delete(m.id); preImg.set(m.id, img);   // LRU-touch: het huidige beeld is het jongst
-    const warm = img.complete && img.naturalWidth > 0;
     img.draggable = false; img.alt = m.fn; img.style.transform = '';
-    lbEl = img; stage.appendChild(img);
-    const meta = () => { if (lbEl === img) $('lb-meta').innerHTML = metaHtml(m, `${img.naturalWidth}×${img.naturalHeight}`, loadTag(performance.now() - t0)); };
-    img.onload = () => { meta(); if (lbEl === img) schedulePrefetch(80); };
-    img.onerror = async () => {
-      if (img.dataset.fallback) return;
-      img.dataset.fallback = '1';
-      try { img.src = await fetchBlob(m, p => setProgress(p)); setProgress(null); } catch (e) { setProgress(null); }
+    const tag = 's' + FULL_LADDER[fullStep];
+    const failed = () => {
+      // Guard op het ITEM, niet op lbEl: een al mislukte voorgeladen buur hangt nog niet op het
+      // podium (lbEl is dan null), en met `lbEl !== img` sloeg de fallback over -> leeg beeld.
+      if (S.filtered[S.idx] !== m) return;
+      img.remove(); if (lbEl === img) lbEl = null;
+      if (ladderDown(m.id)) showImage(m, t0);   // sport veroordeeld: zelfde beeld, kleinere maat
+      else blobImage(m, t0);                    // dit ene bestand: direct via de API
     };
-    if (warm) { meta(); schedulePrefetch(0); }
-    // Een voorgeladen buur die al mislukt was (verlopen gesigneerde link) vuurt zijn error niet
-    // opnieuw af als we hem ophangen -- dan zou de fallback nooit draaien en bleef het beeld leeg.
-    else if (img.complete) { img.onerror(); schedulePrefetch(0); }
-    else schedulePrefetch(900);   // vangnet als onload wegblijft (404, trage generatie)
+    if (img.complete && img.naturalWidth > 0) {  // voorgeladen: ophangen is alles wat nodig is
+      lbEl = img; stage.appendChild(img); dropPlaceholders();
+      meta(img, tag); schedulePrefetch(0); return;
+    }
+    if (img.complete) { failed(); return; }      // een mislukte buur vuurt zijn error niet opnieuw af
+    lbEl = img; stage.appendChild(img); addPlaceholder(m);
+    img.onload = () => { if (lbEl !== img) return; dropPlaceholders(); fullFails.delete(m.id); meta(img, tag); schedulePrefetch(80); };
+    img.onerror = failed;
+    schedulePrefetch(900);                       // vangnet als onload wegblijft
+    return;
+  }
+  blobImage(m, t0);
+}
+
+async function blobImage(m, t0) {
+  const warm = blobCache.has(m.id);
+  const img = new Image();
+  // alt pas op het eind: een <img> zonder src mag zijn alt-tekst tonen, en dat zou als losse
+  // bestandsnaam over de voorvertoning heen staan.
+  img.draggable = false; img.alt = ''; img.decoding = 'async';
+  lbEl = img; stage.appendChild(img);
+  if (!warm) addPlaceholder(m);
+  img.onload = () => { if (lbEl !== img) return; img.alt = m.fn; dropPlaceholders(); meta2(m, img, t0); };
+  schedulePrefetch(warm ? 0 : 1200);   // een koude download krijgt eerst zelf de bandbreedte
+  try {
+    const url = await fetchBlob(m, p => setProgress(p));
+    if (lbEl !== img) return;
+    setProgress(null); img.src = url;
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    setProgress(null);
+    if (lbEl === img) $('lb-meta').innerHTML = metaHtml(m, `<span style="color:var(--bad)">laden mislukt — ${describeError(e)}</span>`);
   }
 }
+function meta2(m, el, t0) { $('lb-meta').innerHTML = metaHtml(m, `${el.naturalWidth}×${el.naturalHeight}`, loadTag(performance.now() - t0, 'api')); }
 // Volledige download via API (voor video's en als de gesigneerde link verlopen is)
 async function fetchBlob(m, onProgress, bgCtrl) {
   if (blobCache.has(m.id)) { const u = blobCache.get(m.id); blobCache.delete(m.id); blobCache.set(m.id, u); return u; }
@@ -995,11 +1101,13 @@ async function fetchBlob(m, onProgress, bgCtrl) {
   const reader = r.body.getReader(); const chunks = []; let got = 0;
   for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
   const url = URL.createObjectURL(new Blob(chunks, { type: r.headers.get('Content-Type') || (m.video ? 'video/mp4' : 'image/png') }));
-  blobCache.set(m.id, url);
-  // Nooit de url intrekken die nu speelt (of die net vooruit gehaald is) -- dat brak de video.
+  blobCache.set(m.id, url); blobBytes.set(m.id, got || m.size || 0);
+  // Nooit de url intrekken die nu speelt of die vooruit gehaald wordt -- dat brak de video. En de
+  // grens zit op BYTES, niet op aantal: acht beelden is 14 MB, acht video's 320 MB.
   const cur = S.filtered[S.idx];
-  for (const k of lruEvict([...blobCache.keys()], [cur && cur.id, bgLoad && bgLoad.id, m.id], PREFETCH_MAX)) {
-    URL.revokeObjectURL(blobCache.get(k)); blobCache.delete(k);
+  const pinned = [cur && cur.id, m.id, ...bg.keys()];
+  for (const k of lruEvictBytes([...blobCache.keys()].map(k => [k, blobBytes.get(k) || 0]), pinned, BLOB_MAX_ITEMS, BLOB_MAX_BYTES)) {
+    URL.revokeObjectURL(blobCache.get(k)); blobCache.delete(k); blobBytes.delete(k);
   }
   if (!bgCtrl && curLoad === ctrl) curLoad = null;
   return url;
